@@ -1,0 +1,135 @@
+// Database types for Supabase
+// These types match the schema in supabase/migrations/001_initial_schema.sql
+
+export type OfficialStatus = 'official' | 'community' | 'unknown';
+export type SourceType = 'manual' | 'auto' | 'unknown';
+export type Vote = 'helpful' | 'not_helpful';
+
+export interface Channel {
+  id: number;
+  youtube_id: string;
+  name: string;
+  description: string | null;
+  thumbnail_url: string | null;
+  official_status: OfficialStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Video {
+  id: number;
+  channel_id: number | null;
+  youtube_id: string;
+  title: string;
+  description: string | null;
+  thumbnail_url: string | null;
+  duration_seconds: number | null;
+  published_at: string | null;
+  has_transcript: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Transcript {
+  id: number;
+  video_id: number | null;
+  full_text: string;
+  language: string;
+  source_type: SourceType;
+  created_at: string;
+}
+
+export interface Segment {
+  id: number;
+  video_id: number | null;
+  transcript_id: number | null;
+  text: string;
+  start_time: number;
+  end_time: number;
+  embedding: number[] | null;
+  created_at: string;
+}
+
+export interface SearchCache {
+  id: number;
+  query_hash: string;
+  query_text: string;
+  language: string;
+  filters: Record<string, unknown>;
+  results: unknown;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface Feedback {
+  id: number;
+  segment_id: number | null;
+  query_text: string | null;
+  vote: Vote;
+  created_at: string;
+}
+
+// Supabase Database type for generic client
+export interface Database {
+  public: {
+    Tables: {
+      channels: {
+        Row: Channel;
+        Insert: Omit<Channel, 'id' | 'created_at' | 'updated_at'> & { id?: number };
+        Update: Partial<Omit<Channel, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      videos: {
+        Row: Video;
+        Insert: Omit<Video, 'id' | 'created_at' | 'updated_at'> & { id?: number };
+        Update: Partial<Omit<Video, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      transcripts: {
+        Row: Transcript;
+        Insert: Omit<Transcript, 'id' | 'created_at'> & { id?: number };
+        Update: Partial<Omit<Transcript, 'id' | 'created_at'>>;
+      };
+      segments: {
+        Row: Segment;
+        Insert: Omit<Segment, 'id' | 'created_at'> & { id?: number };
+        Update: Partial<Omit<Segment, 'id' | 'created_at'>>;
+      };
+      search_cache: {
+        Row: SearchCache;
+        Insert: Omit<SearchCache, 'id' | 'created_at' | 'expires_at'> & { id?: number };
+        Update: Partial<Omit<SearchCache, 'id' | 'created_at'>>;
+      };
+      feedback: {
+        Row: Feedback;
+        Insert: Omit<Feedback, 'id' | 'created_at'> & { id?: number };
+        Update: Partial<Omit<Feedback, 'id' | 'created_at'>>;
+      };
+    };
+    Functions: {
+      search_segments: {
+        Args: {
+          query_embedding: number[];
+          match_threshold?: number;
+          match_count?: number;
+        };
+        Returns: {
+          id: number;
+          video_id: number;
+          text: string;
+          start_time: number;
+          end_time: number;
+          similarity: number;
+        }[];
+      };
+    };
+  };
+}
+
+// Helper type for search results
+export interface SearchResult {
+  id: number;
+  video_id: number;
+  text: string;
+  start_time: number;
+  end_time: number;
+  similarity: number;
+}
