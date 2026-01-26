@@ -1,0 +1,23 @@
+{
+  "appTitle": "Video Search",
+  "searchPlaceholder": "Enter problem or error code...",
+  "searchButton": "Search",
+  "filterErrorCode": "Error Code",
+  "filterCommissioning": "Commissioning",
+  "filterHowTo": "How-to",
+  "filterInterfaces": "Interfaces",
+  "officialLabel": "Official",
+  "communityLabel": "Community",
+  "openOnYouTube": "Open on YouTube",
+  "relatedVideos": "Related Videos",
+  "noResults": "No results found",
+  "searchResults": "Search Results",
+  "filterBySource": "Filter by Source",
+  "sourceAll": "All",
+  "sourceOfficial": "Official",
+  "sourceCommunity": "Community",
+  "segmentDuration": "Segment",
+  "videoDuration": "Video",
+  "languageToggle": "DE",
+  "noTranscriptNotice": "No transcript available - video starts at 0:00"
+}

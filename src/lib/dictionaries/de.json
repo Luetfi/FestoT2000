@@ -1,0 +1,23 @@
+{
+  "appTitle": "Video Suche",
+  "searchPlaceholder": "Problem oder Fehlercode eingeben...",
+  "searchButton": "Suchen",
+  "filterErrorCode": "Fehlercode",
+  "filterCommissioning": "Inbetriebnahme",
+  "filterHowTo": "How-to",
+  "filterInterfaces": "Schnittstellen",
+  "officialLabel": "Offiziell",
+  "communityLabel": "Community",
+  "openOnYouTube": "Auf YouTube öffnen",
+  "relatedVideos": "Ähnliche Videos",
+  "noResults": "Keine Ergebnisse gefunden",
+  "searchResults": "Suchergebnisse",
+  "filterBySource": "Nach Quelle filtern",
+  "sourceAll": "Alle",
+  "sourceOfficial": "Offiziell",
+  "sourceCommunity": "Community",
+  "segmentDuration": "Segment",
+  "videoDuration": "Video",
+  "languageToggle": "EN",
+  "noTranscriptNotice": "Kein Transkript verfügbar - Video startet bei 0:00"
+}
