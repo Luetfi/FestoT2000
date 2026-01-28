@@ -6,7 +6,7 @@ import type { Database } from './types';
 
 let _supabaseAdmin: SupabaseClient<Database> | null = null;
 
-function getSupabaseAdmin(): SupabaseClient<Database> {
+export function getSupabaseAdmin(): SupabaseClient<Database> {
   if (_supabaseAdmin) return _supabaseAdmin;
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -31,8 +31,13 @@ function getSupabaseAdmin(): SupabaseClient<Database> {
   return _supabaseAdmin;
 }
 
-export const supabaseAdmin = new Proxy({} as SupabaseClient<Database>, {
-  get(_, prop) {
-    return Reflect.get(getSupabaseAdmin(), prop);
-  },
-});
+// Proxy with explicit typing to preserve TypeScript inference
+// Without explicit 'as SupabaseClient<Database>', tables type as 'never'
+export const supabaseAdmin: SupabaseClient<Database> = new Proxy(
+  {} as SupabaseClient<Database>,
+  {
+    get(_, prop) {
+      return Reflect.get(getSupabaseAdmin(), prop);
+    },
+  }
+) as SupabaseClient<Database>;

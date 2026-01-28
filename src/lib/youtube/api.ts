@@ -121,8 +121,30 @@ export async function fetchChannelMetadata(channelId: string): Promise<ChannelMe
 
 /**
  * Determine if channel is official based on name containing "festo"
- * Can be overridden via ENV allowlist/blocklist (implemented later)
+ * Can be overridden via ENV allowlist/blocklist
+ * Blocklist takes precedence (security), then allowlist, then default
  */
 export function classifyChannel(channelName: string): 'official' | 'community' {
-  return channelName.toLowerCase().includes('festo') ? 'official' : 'community';
+  const normalized = channelName.toLowerCase().trim();
+
+  // Blocklist takes precedence (security: prevent false positives)
+  const blocklist = process.env.CHANNEL_BLOCKLIST?.split(',')
+    .map(c => c.trim().toLowerCase())
+    .filter(c => c.length > 0) || [];
+
+  if (blocklist.some(blocked => normalized.includes(blocked))) {
+    return 'community';
+  }
+
+  // Allowlist before default (flexibility: add official partners)
+  const allowlist = process.env.CHANNEL_ALLOWLIST?.split(',')
+    .map(c => c.trim().toLowerCase())
+    .filter(c => c.length > 0) || [];
+
+  if (allowlist.some(allowed => normalized.includes(allowed))) {
+    return 'official';
+  }
+
+  // Default classification (case-insensitive "festo" keyword)
+  return normalized.includes('festo') ? 'official' : 'community';
 }
