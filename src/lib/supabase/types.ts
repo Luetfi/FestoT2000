@@ -120,6 +120,24 @@ export interface Database {
           similarity: number;
         }[];
       };
+      hybrid_search_segments: {
+        Args: {
+          query_text: string;
+          query_embedding: number[];
+          match_count?: number;
+          full_text_weight?: number;
+          semantic_weight?: number;
+          rrf_k?: number;
+        };
+        Returns: {
+          id: number;
+          video_id: number;
+          text: string;
+          start_time: number;
+          end_time: number;
+          rrf_score: number;
+        }[];
+      };
     };
   };
 }
@@ -132,4 +150,14 @@ export interface SearchResult {
   start_time: number;
   end_time: number;
   similarity: number;
+}
+
+// Helper type for hybrid search results
+export interface HybridSearchResult {
+  id: number;
+  video_id: number;
+  text: string;
+  start_time: number;
+  end_time: number;
+  rrf_score: number;
 }

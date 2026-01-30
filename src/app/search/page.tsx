@@ -6,7 +6,7 @@ import { SearchHeader } from '@/components/search/search-header';
 import { FilterSidebar, type SourceFilter } from '@/components/results/filter-sidebar';
 import { ResultsList } from '@/components/results/results-list';
 import { VideoPreview } from '@/components/video/video-preview';
-import type { SearchResultSegment, SearchResponse } from '@/types/search';
+import type { SearchResultSegment } from '@/types/search';
 import type { Dictionary, Locale } from '@/lib/dictionaries/get-dictionary';
 
 // Inner component that uses useSearchParams
@@ -19,6 +19,7 @@ function SearchPageContent() {
   const [dict, setDict] = useState<Dictionary | null>(null);
   const [results, setResults] = useState<SearchResultSegment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [selectedSegment, setSelectedSegment] = useState<SearchResultSegment | null>(null);
 
@@ -36,15 +37,26 @@ function SearchPageContent() {
   useEffect(() => {
     const fetchResults = async () => {
       setLoading(true);
+      setError(null);
       try {
         // Always fetch ALL results - source filtering is client-side only
         const response = await fetch(
           `/api/search?q=${encodeURIComponent(query)}&source=all`
         );
-        const data: SearchResponse = await response.json();
-        setResults(data.results);
-      } catch (error) {
-        console.error('Search failed:', error);
+        const data = await response.json();
+        // Handle error responses (API returns { error: string } on failure)
+        if (!response.ok || !data.results) {
+          const errorMessage = data.error || 'Unknown error';
+          console.error('Search API error:', errorMessage);
+          setError(errorMessage);
+          setResults([]);
+          return;
+        }
+        setResults(data.results as SearchResultSegment[]);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Network error';
+        console.error('Search failed:', errorMessage);
+        setError(errorMessage);
         setResults([]);
       } finally {
         setLoading(false);
@@ -109,6 +121,15 @@ function SearchPageContent() {
           <div className="flex-1 flex items-center justify-center">
             <div className="animate-pulse text-muted-foreground">
               {lang === 'de' ? 'Suche läuft...' : 'Searching...'}
+            </div>
+          </div>
+        ) : error ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center p-8 max-w-md">
+              <p className="text-destructive font-medium mb-2">
+                {lang === 'de' ? 'Fehler bei der Suche' : 'Search error'}
+              </p>
+              <p className="text-sm text-muted-foreground">{error}</p>
             </div>
           </div>
         ) : (
