@@ -2,6 +2,9 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+// Keep shadcn Card - Festo Card has incompatible API (CardBody requires 'text' prop)
+// We use Festo styling through web-essentials CSS but keep shadcn structure
+
 function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div

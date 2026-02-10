@@ -20,7 +20,7 @@ export function SearchHeader({ dict, lang, currentQuery }: SearchHeaderProps) {
           href={`/?lang=${lang}`}
           className="flex items-center gap-3 hover:opacity-80 transition-opacity shrink-0"
         >
-          <FestoLogo className="text-2xl" />
+          <FestoLogo height={24} />
           <span className="text-xl font-[family-name:var(--font-title)] text-foreground">
             {dict.appTitle}
           </span>

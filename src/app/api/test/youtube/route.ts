@@ -7,6 +7,9 @@ import { rateLimitMiddleware } from '@/lib/rate-limit';
 const TEST_VIDEO_ID = 'dQw4w9WgXcQ'; // Replace with actual Festo video ID in production
 
 export async function GET(request: Request) {
+  if (process.env.NODE_ENV === 'production') {
+    return new NextResponse(null, { status: 404 });
+  }
   // Apply rate limiting
   const rateLimitResponse = await rateLimitMiddleware(request);
   if (rateLimitResponse) return rateLimitResponse;

@@ -1,5 +1,7 @@
 {
   "appTitle": "Video Search",
+  "headerTitle": "DIY-Finder",
+  "settings": "Settings",
   "searchPlaceholder": "Enter problem or error code...",
   "searchButton": "Search",
   "filterErrorCode": "Error Code",
@@ -19,5 +21,8 @@
   "segmentDuration": "Segment",
   "videoDuration": "Video",
   "languageToggle": "DE",
-  "noTranscriptNotice": "No transcript available - video starts at 0:00"
+  "noTranscriptNotice": "No transcript available - video starts at 0:00",
+  "settingsLanguage": "Language",
+  "languageGerman": "German",
+  "languageEnglish": "English"
 }

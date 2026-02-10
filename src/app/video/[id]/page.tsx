@@ -1,13 +1,15 @@
+import 'server-only';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ExternalLink, ArrowLeft } from 'lucide-react';
+import { ExternalLinkIcon, ArrowLeftIcon } from '@/components/icons/festo-icons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { YouTubePlayer } from '@/components/video/youtube-player';
 import { RelatedResults } from '@/components/video/related-results';
-import { mockSegments } from '@/lib/mock-data/segments';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { getDictionary, isValidLocale, defaultLocale } from '@/lib/dictionaries/get-dictionary';
 import { formatTimeRange, formatDuration } from '@/types/search';
+import type { SearchResultSegment, OfficialStatus } from '@/types/search';
 
 interface VideoPageProps {
   params: Promise<{ id: string }>;
@@ -20,12 +22,92 @@ export default async function VideoPage({ params, searchParams }: VideoPageProps
   const lang = isValidLocale(langParam) ? langParam : defaultLocale;
   const dict = await getDictionary(lang);
 
-  // Find the segment by ID
-  const segment = mockSegments.find((s) => s.id === id);
-
-  if (!segment) {
+  // Parse segment ID as number for DB query
+  const segmentId = parseInt(id, 10);
+  if (isNaN(segmentId)) {
     notFound();
   }
+
+  const supabase = getSupabaseAdmin();
+
+  // Load segment from DB
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: segmentRow }: { data: any } = await supabase
+    .from('segments')
+    .select('id, text, start_time, end_time, video_id')
+    .eq('id', segmentId)
+    .single();
+
+  if (!segmentRow) {
+    notFound();
+  }
+
+  // Load video with channel data (same pattern as enrichment.ts)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: video }: { data: any } = await supabase
+    .from('videos')
+    .select(`
+      id,
+      youtube_id,
+      title,
+      description,
+      thumbnail_url,
+      duration_seconds,
+      has_transcript,
+      channels (
+        name,
+        official_status
+      )
+    `)
+    .eq('id', segmentRow.video_id)
+    .single();
+
+  const channel = video?.channels?.[0] || video?.channels;
+
+  const segment: SearchResultSegment = {
+    id: String(segmentRow.id),
+    text: segmentRow.text,
+    start_time: segmentRow.start_time,
+    end_time: segmentRow.end_time,
+    similarity: 0,
+    video_id: String(segmentRow.video_id),
+    video_youtube_id: video?.youtube_id ?? '',
+    video_title: video?.title ?? '',
+    video_description: video?.description ?? null,
+    video_thumbnail_url: video?.thumbnail_url ?? '',
+    video_duration_seconds: video?.duration_seconds ?? null,
+    video_has_transcript: video?.has_transcript ?? false,
+    channel_name: channel?.name ?? 'Unknown',
+    channel_official_status: (channel?.official_status as OfficialStatus) ?? 'unknown',
+  };
+
+  // Load related segments from the same video
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: relatedRows }: { data: any[] | null } = await supabase
+    .from('segments')
+    .select('id, text, start_time, end_time, video_id')
+    .eq('video_id', segmentRow.video_id)
+    .neq('id', segmentRow.id)
+    .order('start_time', { ascending: true })
+    .limit(5);
+
+  const relatedSegments: SearchResultSegment[] = (relatedRows || []).map((row) => ({
+    id: String(row.id),
+    text: row.text,
+    start_time: row.start_time,
+    end_time: row.end_time,
+    similarity: 0,
+    video_id: String(row.video_id),
+    // Related segments share the same video, reuse video/channel data
+    video_youtube_id: video?.youtube_id ?? '',
+    video_title: video?.title ?? '',
+    video_description: video?.description ?? null,
+    video_thumbnail_url: video?.thumbnail_url ?? '',
+    video_duration_seconds: video?.duration_seconds ?? null,
+    video_has_transcript: video?.has_transcript ?? false,
+    channel_name: channel?.name ?? 'Unknown',
+    channel_official_status: (channel?.official_status as OfficialStatus) ?? 'unknown',
+  }));
 
   const isOfficial = segment.channel_official_status === 'official';
   const youtubeUrl = `https://www.youtube.com/watch?v=${segment.video_youtube_id}&t=${segment.start_time}s`;
@@ -33,23 +115,15 @@ export default async function VideoPage({ params, searchParams }: VideoPageProps
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-background border-b">
-        <div className="flex items-center gap-4 px-4 py-3">
-          <Link href={`/search?lang=${lang}`}>
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              {dict.searchResults}
-            </Button>
-          </Link>
-          <Link
-            href={`/?lang=${lang}`}
-            className="text-xl font-bold text-foreground hover:text-foreground/80 transition-colors"
-          >
-            {dict.appTitle}
-          </Link>
-        </div>
-      </header>
+      {/* Back navigation */}
+      <div className="px-4 py-3 border-b">
+        <Link href={`/search?lang=${lang}`}>
+          <Button variant="ghost" size="sm">
+            <ArrowLeftIcon size={16} className="mr-2" />
+            {dict.searchResults}
+          </Button>
+        </Link>
+      </div>
 
       {/* Main content */}
       <main className="max-w-6xl mx-auto px-4 py-6">
@@ -100,14 +174,14 @@ export default async function VideoPage({ params, searchParams }: VideoPageProps
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground italic">
-                  "{segment.text}"
+                  &ldquo;{segment.text}&rdquo;
                 </p>
               </div>
 
               {/* Open on YouTube button */}
               <Button asChild variant="outline">
                 <a href={youtubeUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="mr-2 h-4 w-4" />
+                  <ExternalLinkIcon size={16} className="mr-2" />
                   {dict.openOnYouTube}
                 </a>
               </Button>
@@ -127,7 +201,7 @@ export default async function VideoPage({ params, searchParams }: VideoPageProps
           <div className="col-span-1">
             <RelatedResults
               currentSegmentId={segment.id}
-              segments={mockSegments}
+              segments={relatedSegments}
               lang={lang}
               labels={{
                 official: dict.officialLabel,

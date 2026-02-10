@@ -1,11 +1,16 @@
 // YouTube transcript fetching - server-only
 // Fetch transcripts with timestamps, graceful error handling
+//
+// NOTE: YouTube currently blocks server-side transcript fetching (timedtext API
+// returns empty responses). The youtube-transcript library (v1.2.1) no longer
+// works with YouTube's current infrastructure. This module is preserved for when
+// a working solution is available (e.g. yt-dlp, updated library, or proxy).
+// For now, the seed endpoint uses synthetic transcripts with real embeddings.
 import 'server-only';
-import { YoutubeTranscript } from 'youtube-transcript';
 
 /**
  * Transcript segment with timestamp metadata
- * Timestamps are in milliseconds from youtube-transcript library
+ * Timestamps are in milliseconds from video start
  */
 export interface TranscriptSegment {
   text: string;
@@ -36,9 +41,12 @@ export async function fetchVideoTranscript(
 ): Promise<TranscriptResult> {
   // Try German first (primary target audience)
   try {
+    const { YoutubeTranscript } = await import('youtube-transcript');
     const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
       lang: 'de',
     });
+
+    if (transcript.length === 0) throw new Error('Empty transcript');
 
     return {
       segments: transcript.map((item) => ({
@@ -47,15 +55,18 @@ export async function fetchVideoTranscript(
         duration: item.duration,
       })),
       language: 'de',
-      source: determineSource(),
+      source: 'unknown',
       available: true,
     };
   } catch {
     // German transcript unavailable, try English fallback
     try {
+      const { YoutubeTranscript } = await import('youtube-transcript');
       const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
         lang: 'en',
       });
+
+      if (transcript.length === 0) throw new Error('Empty transcript');
 
       return {
         segments: transcript.map((item) => ({
@@ -64,7 +75,7 @@ export async function fetchVideoTranscript(
           duration: item.duration,
         })),
         language: 'en',
-        source: determineSource(),
+        source: 'unknown',
         available: true,
       };
     } catch (fallbackError) {
@@ -82,15 +93,4 @@ export async function fetchVideoTranscript(
       };
     }
   }
-}
-
-/**
- * Determine if transcript is manual or auto-generated
- * youtube-transcript library doesn't provide metadata, so default to unknown
- * Future: Could be enhanced with additional API calls if needed
- */
-function determineSource(): 'manual' | 'auto' | 'unknown' {
-  // youtube-transcript library doesn't expose source metadata
-  // Could be enhanced by parsing transcript quality indicators
-  return 'unknown';
 }

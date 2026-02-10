@@ -1,3 +1,4 @@
+@import '@festo-ui/web-essentials/dist/css/festo-web-essentials.css';
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -126,3 +127,4 @@
     min-width: 1280px;
   }
 }
+

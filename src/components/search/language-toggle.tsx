@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Globe } from 'lucide-react';
+import { LanguageIcon } from '@/components/icons/festo-icons';
 
 interface LanguageToggleProps {
   currentLang: 'de' | 'en';
@@ -28,7 +28,7 @@ export function LanguageToggle({ currentLang, label }: LanguageToggleProps) {
       onClick={toggleLanguage}
       className="flex items-center gap-2"
     >
-      <Globe className="h-4 w-4" />
+      <LanguageIcon size={16} />
       {label}
     </Button>
   );

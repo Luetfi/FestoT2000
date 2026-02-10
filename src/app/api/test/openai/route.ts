@@ -4,6 +4,9 @@ import { generateEmbedding, EMBEDDING_DIMENSIONS, validateEmbedding } from '@/li
 import { rateLimitMiddleware } from '@/lib/rate-limit';
 
 export async function GET(request: Request) {
+  if (process.env.NODE_ENV === 'production') {
+    return new NextResponse(null, { status: 404 });
+  }
   // Apply rate limiting
   const rateLimitResponse = await rateLimitMiddleware(request);
   if (rateLimitResponse) return rateLimitResponse;

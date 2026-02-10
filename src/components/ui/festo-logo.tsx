@@ -1,18 +1,23 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 interface FestoLogoProps {
   className?: string;
+  height?: number;
 }
 
-export function FestoLogo({ className }: FestoLogoProps) {
+export function FestoLogo({ className, height = 24 }: FestoLogoProps) {
+  // Logo aspect ratio is approximately 5:1 (width:height)
+  const width = Math.round(height * 5);
+
   return (
-    <span
-      className={cn(
-        "font-[family-name:var(--font-festo)] text-[#0091DC] tracking-tight select-none",
-        className
-      )}
-    >
-      FESTO
-    </span>
+    <Image
+      src="/festo-logo.png"
+      alt="FESTO"
+      width={width}
+      height={height}
+      className={cn("select-none", className)}
+      priority
+    />
   );
 }

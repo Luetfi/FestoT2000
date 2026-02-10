@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { SearchHeader } from '@/components/search/search-header';
+import { SearchInput } from '@/components/search/search-input';
 import { FilterSidebar, type SourceFilter } from '@/components/results/filter-sidebar';
 import { ResultsList } from '@/components/results/results-list';
 import { VideoPreview } from '@/components/video/video-preview';
@@ -98,8 +98,17 @@ function SearchPageContent() {
 
   return (
     <div className="flex h-screen flex-col">
-      {/* Sticky header */}
-      <SearchHeader dict={dict} lang={lang} currentQuery={query} />
+      {/* Search bar */}
+      <div className="border-b px-4 py-3">
+        <div className="max-w-2xl">
+          <SearchInput
+            placeholder={dict.searchPlaceholder}
+            buttonText={dict.searchButton}
+            lang={lang}
+            defaultValue={query}
+          />
+        </div>
+      </div>
 
       {/* Main content area */}
       <div className="flex flex-1 overflow-hidden">

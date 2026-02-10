@@ -1,6 +1,6 @@
 'use client';
 
-import { ExternalLink } from 'lucide-react';
+import { ExternalLinkIcon } from '@/components/icons/festo-icons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { YouTubePlayer } from './youtube-player';
@@ -88,7 +88,7 @@ export function VideoPreview({ segment, labels }: VideoPreviewProps) {
         {/* Open on YouTube button */}
         <Button asChild variant="outline" className="w-full">
           <a href={youtubeUrl} target="_blank" rel="noopener noreferrer">
-            <ExternalLink className="mr-2 h-4 w-4" />
+            <ExternalLinkIcon size={16} className="mr-2" />
             {labels.openOnYouTube}
           </a>
         </Button>

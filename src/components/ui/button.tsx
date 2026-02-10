@@ -1,9 +1,12 @@
+'use client';
+
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
+import { Button as FestoButton } from "@festo-ui/react"
 import { cva, type VariantProps } from "class-variance-authority"
-
 import { cn } from "@/lib/utils"
 
+// Keep buttonVariants for Sidebar compatibility (shadcn sidebar uses this)
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
   {
@@ -38,27 +41,64 @@ const buttonVariants = cva(
   }
 )
 
+type ShadcnVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
+type ShadcnSize = 'default' | 'xs' | 'sm' | 'lg' | 'icon' | 'icon-xs' | 'icon-sm' | 'icon-lg';
+
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ShadcnVariant;
+  size?: ShadcnSize;
+  asChild?: boolean;
+}
+
 function Button({
   className,
   variant = "default",
   size = "default",
   asChild = false,
+  children,
   ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean
-  }) {
-  const Comp = asChild ? Slot : "button"
+}: ButtonProps) {
+  // For asChild pattern (used with Links), use Slot with buttonVariants styling
+  if (asChild) {
+    return (
+      <Slot
+        data-slot="button"
+        data-variant={variant}
+        data-size={size}
+        className={cn(buttonVariants({ variant, size, className }))}
+        {...props}
+      >
+        {children}
+      </Slot>
+    );
+  }
+
+  // Map shadcn variants to Festo boolean props
+  // Festo uses: primary (default), tertiary, or neither (secondary)
+  const isPrimary = variant === 'default' || variant === 'destructive';
+  const isTertiary = variant === 'ghost' || variant === 'link';
+  // secondary/outline = neither primary nor tertiary (Festo default secondary)
+
+  // Map sizes
+  const isLarge = size === 'lg' || size === 'icon-lg';
+  const isIconOnly = size === 'icon' || size === 'icon-xs' || size === 'icon-sm' || size === 'icon-lg';
 
   return (
-    <Comp
-      data-slot="button"
-      data-variant={variant}
-      data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+    <FestoButton
+      primary={isPrimary}
+      tertiary={isTertiary}
+      large={isLarge}
+      iconOnly={isIconOnly}
+      className={cn(
+        // Add destructive styling if needed
+        variant === 'destructive' && 'bg-destructive hover:bg-destructive/90',
+        className
+      )}
       {...props}
-    />
-  )
+    >
+      {children}
+    </FestoButton>
+  );
 }
 
 export { Button, buttonVariants }
