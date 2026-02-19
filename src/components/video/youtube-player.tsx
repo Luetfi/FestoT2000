@@ -51,10 +51,19 @@ export function YouTubePlayer({
 
   // Seek to new start time when it changes
   useEffect(() => {
-    if (playerRef.current && typeof playerRef.current.seekTo === 'function') {
-      playerRef.current.seekTo(startTime, true);
+    if (!playerRef.current) return;
+    try {
+      const state = playerRef.current.getPlayerState?.();
+      if (state === -1 || state === 5) {
+        // Video unstarted or cued — cueVideoById shows the actual frame
+        playerRef.current.cueVideoById({ videoId, startSeconds: startTime });
+      } else {
+        playerRef.current.seekTo(startTime, true);
+      }
+    } catch {
+      // Player might not be fully initialized or already destroyed
     }
-  }, [startTime]);
+  }, [startTime, videoId]);
 
   return (
     <div className={className}>

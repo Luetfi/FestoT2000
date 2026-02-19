@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { SearchResultSegment } from '@/types/search';
@@ -8,6 +10,7 @@ interface ResultCardProps {
   segment: SearchResultSegment;
   isSelected: boolean;
   onClick: () => void;
+  lang: string;
   labels: {
     official: string;
     community: string;
@@ -19,6 +22,7 @@ export function ResultCard({
   segment,
   isSelected,
   onClick,
+  lang,
   labels,
 }: ResultCardProps) {
   const isOfficial = segment.channel_official_status === 'official';
@@ -52,11 +56,20 @@ export function ResultCard({
         <p className="text-sm text-muted-foreground line-clamp-3 mb-2">
           {segment.text}
         </p>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <span className="font-medium">{labels.segmentDuration}:</span>
-            {timeRange}
-          </span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <span className="font-medium">{labels.segmentDuration}:</span>
+              {timeRange}
+            </span>
+          </div>
+          <Link
+            href={`/video/${segment.video_id}?lang=${lang}&segment=${segment.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="shrink-0 p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+          >
+            <ArrowRight className="size-4" />
+          </Link>
         </div>
       </CardContent>
     </Card>

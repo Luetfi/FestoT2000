@@ -1,25 +1,19 @@
-import type { SearchResultSegment } from '@/types/search';
-import { ResultCard } from './result-card';
+import { VideoResultCard, type GroupedVideoResult } from './video-result-card';
 
 interface ResultsListProps {
-  segments: SearchResultSegment[];
-  selectedId: string | null;
-  onSelect: (segment: SearchResultSegment) => void;
+  videos: GroupedVideoResult[];
+  lang: string;
   labels: {
     official: string;
     community: string;
     segmentDuration: string;
+    matchingSegments: string;
     noResults: string;
   };
 }
 
-export function ResultsList({
-  segments,
-  selectedId,
-  onSelect,
-  labels,
-}: ResultsListProps) {
-  if (segments.length === 0) {
+export function ResultsList({ videos, lang, labels }: ResultsListProps) {
+  if (videos.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <p className="text-muted-foreground text-lg">{labels.noResults}</p>
@@ -29,16 +23,16 @@ export function ResultsList({
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-3">
-      {segments.map((segment) => (
-        <ResultCard
-          key={segment.id}
-          segment={segment}
-          isSelected={selectedId === segment.id}
-          onClick={() => onSelect(segment)}
+      {videos.map((video) => (
+        <VideoResultCard
+          key={video.video_id}
+          video={video}
+          lang={lang}
           labels={{
             official: labels.official,
             community: labels.community,
             segmentDuration: labels.segmentDuration,
+            matchingSegments: labels.matchingSegments,
           }}
         />
       ))}

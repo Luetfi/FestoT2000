@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import localFont from "next/font/local";
 import { Geist_Mono } from "next/font/google";
 import { FestoHeader } from "@/components/layout/festo-header";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 // Festo Display Font (for logo)
@@ -42,21 +43,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="de">
+    <html lang="de" suppressHydrationWarning>
       <body
         className={`${festoFont.variable} ${metaPlusBold.variable} ${metaPlusRegular.variable} ${geistMono.variable} antialiased min-w-[1280px]`}
       >
-        <Suspense fallback={
-          <header className="sticky top-0 z-10 bg-white border-b-2 border-[#0091DC]">
-            <div className="flex items-center justify-between px-6 py-3">
-              <div className="h-8 w-24 bg-muted animate-pulse rounded" />
-              <div className="h-8 w-48 bg-muted animate-pulse rounded" />
-            </div>
-          </header>
-        }>
-          <FestoHeader />
-        </Suspense>
-        {children}
+        <ThemeProvider>
+          <Suspense fallback={
+            <header className="sticky top-0 z-10 bg-background border-b-2 border-[#0091DC]">
+              <div className="flex items-center justify-between px-6 py-3">
+                <div className="h-8 w-24 bg-muted animate-pulse rounded" />
+                <div className="h-8 w-48 bg-muted animate-pulse rounded" />
+              </div>
+            </header>
+          }>
+            <FestoHeader />
+          </Suspense>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

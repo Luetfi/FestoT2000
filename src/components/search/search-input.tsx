@@ -11,6 +11,7 @@ interface SearchInputProps {
   buttonText: string;
   lang: string;
   defaultValue?: string;
+  compact?: boolean;
 }
 
 export function SearchInput({
@@ -18,6 +19,7 @@ export function SearchInput({
   buttonText,
   lang,
   defaultValue = '',
+  compact = false,
 }: SearchInputProps) {
   const router = useRouter();
   const [query, setQuery] = useState(defaultValue);
@@ -32,17 +34,16 @@ export function SearchInput({
   return (
     <form onSubmit={handleSubmit} className="flex gap-2 w-full">
       <div className="relative flex-1">
-        <SearchIcon size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <SearchIcon size={compact ? 16 : 20} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={placeholder}
-          className="pl-10 h-12 text-lg"
-          autoFocus
+          className={compact ? "pl-9 h-9 text-sm text-foreground" : "pl-10 h-12 text-lg text-foreground"}
         />
       </div>
-      <Button type="submit" size="lg" className="h-12 px-8">
+      <Button type="submit" size={compact ? "sm" : "lg"} className={compact ? "h-9 px-4" : "h-12 px-8"}>
         {buttonText}
       </Button>
     </form>

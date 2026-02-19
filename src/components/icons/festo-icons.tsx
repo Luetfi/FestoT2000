@@ -1,8 +1,43 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-interface FestoIconProps {
+export interface FestoIconProps {
   className?: string;
   size?: number;
+}
+
+/* ─── Map category IDs to official Festo UI icon filenames ─── */
+const CATEGORY_ICON_MAP: Record<string, string> = {
+  'drives-actuators': 'pneumatic-actuator-24.png',
+  'motors-drives': 'motor-24.png',
+  'grippers': 'gripper-24.png',
+  'handling-robots': 'handlingsystems-24.png',
+  'vacuum': 'vacuum-technology-24.png',
+  'valves': 'solenoid-valves-24.png',
+  'motion-terminal': 'motion-terminal-24.png',
+  'sensors': 'sensors-24.png',
+  'air-preparation': 'compressed-air-24.png',
+  'connection': 'connector-24.png',
+  'controls-remote-io': 'controller-24.png',
+  'software': 'software-24.png',
+  'ready-to-install': 'ready-to-install-solutions-24.png',
+  'function-specific': 'function-specific-system-24.png',
+  'other-pneumatic': 'pneumatic-equipment-24.png',
+  'services': 'services-24.png',
+};
+
+export function CategoryIcon({ categoryId, className, size = 24 }: FestoIconProps & { categoryId: string }) {
+  const filename = CATEGORY_ICON_MAP[categoryId];
+  if (!filename) return null;
+  return (
+    <Image
+      src={`/icons/colour/${filename}`}
+      alt=""
+      width={size}
+      height={size}
+      className={cn("inline-block", className)}
+    />
+  );
 }
 
 export function SettingsIcon({ className, size = 24 }: FestoIconProps) {

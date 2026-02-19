@@ -148,3 +148,29 @@ export function classifyChannel(channelName: string): 'official' | 'community' {
   // Default classification (case-insensitive "festo" keyword)
   return normalized.includes('festo') ? 'official' : 'community';
 }
+
+/**
+ * Search YouTube for videos matching a query
+ * Filters for videos with closed captions available
+ *
+ * @param query - Search query string
+ * @param maxResults - Maximum number of results (default 5)
+ * @returns Array of video IDs
+ */
+export async function searchVideos(query: string, maxResults = 5, relevanceLanguage = 'de'): Promise<string[]> {
+  const youtube = getYouTube();
+  const response = await youtube.search.list({
+    part: ['id'],
+    q: query,
+    type: ['video'],
+    videoCaption: 'closedCaption',
+    maxResults,
+    relevanceLanguage,
+  });
+
+  if (!response.data.items) return [];
+
+  return response.data.items
+    .map((item) => item.id?.videoId)
+    .filter((id): id is string => !!id);
+}

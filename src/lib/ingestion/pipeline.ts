@@ -108,6 +108,10 @@ export async function ingestVideo(videoId: string): Promise<IngestionResult> {
       };
     }
 
+    // Delete old transcripts (cascades to segments) for idempotent re-ingestion
+    // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
+    await getSupabaseAdmin().from('transcripts').delete().eq('video_id', video.id);
+
     // Store transcript in database
     const fullText = transcriptResult.segments.map((s) => s.text).join(' ');
     const { data: transcript, error: transcriptError } = await getSupabaseAdmin()

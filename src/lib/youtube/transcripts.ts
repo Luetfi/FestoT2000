@@ -1,12 +1,11 @@
 // YouTube transcript fetching - server-only
 // Fetch transcripts with timestamps, graceful error handling
 //
-// NOTE: YouTube currently blocks server-side transcript fetching (timedtext API
-// returns empty responses). The youtube-transcript library (v1.2.1) no longer
-// works with YouTube's current infrastructure. This module is preserved for when
-// a working solution is available (e.g. yt-dlp, updated library, or proxy).
-// For now, the seed endpoint uses synthetic transcripts with real embeddings.
+// Uses youtube-transcript-plus for reliable server-side transcript fetching.
+// Fallback chain: German captions → English captions → unavailable
 import 'server-only';
+
+import { fetchTranscript } from 'youtube-transcript-plus';
 
 /**
  * Transcript segment with timestamp metadata
@@ -40,57 +39,49 @@ export async function fetchVideoTranscript(
   videoId: string
 ): Promise<TranscriptResult> {
   // Try German first (primary target audience)
-  try {
-    const { YoutubeTranscript } = await import('youtube-transcript');
-    const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
-      lang: 'de',
-    });
+  const deResult = await tryFetchTranscript(videoId, 'de');
+  if (deResult) return deResult;
 
-    if (transcript.length === 0) throw new Error('Empty transcript');
+  // Try English fallback
+  const enResult = await tryFetchTranscript(videoId, 'en');
+  if (enResult) return enResult;
+
+  // No transcript available (only DE/EN accepted for hybrid search compatibility)
+  console.warn(`Transcript unavailable for video ${videoId}`);
+  return {
+    segments: [],
+    language: 'unknown',
+    source: 'unknown',
+    available: false,
+  };
+}
+
+async function tryFetchTranscript(
+  videoId: string,
+  lang: string | undefined
+): Promise<TranscriptResult | null> {
+  try {
+    const subtitles = await fetchTranscript(videoId, { lang });
+
+    if (!subtitles || subtitles.length === 0) return null;
+
+    const segments: TranscriptSegment[] = subtitles.map((sub) => ({
+      text: sub.text,
+      offset: Math.round(sub.offset * 1000),
+      duration: Math.round(sub.duration * 1000),
+    }));
 
     return {
-      segments: transcript.map((item) => ({
-        text: item.text,
-        offset: item.offset,
-        duration: item.duration,
-      })),
-      language: 'de',
+      segments,
+      language: lang || subtitles[0]?.lang || 'unknown',
       source: 'unknown',
       available: true,
     };
-  } catch {
-    // German transcript unavailable, try English fallback
-    try {
-      const { YoutubeTranscript } = await import('youtube-transcript');
-      const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
-        lang: 'en',
-      });
-
-      if (transcript.length === 0) throw new Error('Empty transcript');
-
-      return {
-        segments: transcript.map((item) => ({
-          text: item.text,
-          offset: item.offset,
-          duration: item.duration,
-        })),
-        language: 'en',
-        source: 'unknown',
-        available: true,
-      };
-    } catch (fallbackError) {
-      // No transcript available in either language
-      console.warn(
-        `Transcript unavailable for video ${videoId}:`,
-        fallbackError instanceof Error ? fallbackError.message : 'Unknown error'
-      );
-
-      return {
-        segments: [],
-        language: 'unknown',
-        source: 'unknown',
-        available: false,
-      };
-    }
+  } catch (error) {
+    console.warn(
+      `Transcript fetch failed for ${videoId} (lang=${lang}):`,
+      error instanceof Error ? error.message : 'Unknown error'
+    );
+    return null;
   }
 }

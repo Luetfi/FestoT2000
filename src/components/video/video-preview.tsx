@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { ExternalLinkIcon } from '@/components/icons/festo-icons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,17 +10,19 @@ import { formatTimeRange, formatDuration } from '@/types/search';
 
 interface VideoPreviewProps {
   segment: SearchResultSegment | null;
+  lang: string;
   labels: {
     official: string;
     community: string;
     openOnYouTube: string;
+    viewDetails: string;
     segmentDuration: string;
     videoDuration: string;
     noTranscriptNotice: string;
   };
 }
 
-export function VideoPreview({ segment, labels }: VideoPreviewProps) {
+export function VideoPreview({ segment, lang, labels }: VideoPreviewProps) {
   if (!segment) {
     return (
       <aside className="w-[420px] border-l bg-muted/30 flex items-center justify-center">
@@ -91,6 +94,13 @@ export function VideoPreview({ segment, labels }: VideoPreviewProps) {
             <ExternalLinkIcon size={16} className="mr-2" />
             {labels.openOnYouTube}
           </a>
+        </Button>
+
+        {/* View details button */}
+        <Button asChild variant="default" className="w-full">
+          <Link href={`/video/${segment.video_id}?lang=${lang}&segment=${segment.id}`}>
+            {labels.viewDetails}
+          </Link>
         </Button>
       </div>
     </aside>

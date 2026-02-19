@@ -2,56 +2,69 @@
 // Keyword search queries targeting Festo products, problems, and interfaces
 import 'server-only';
 
+export interface SeedQuery {
+  query: string;
+  lang: 'de' | 'en';
+}
+
 /**
  * Seed queries for initial video corpus discovery
- * Categories:
- * - Product families: CPX, VTUG, MPA, CMMT-AS, CECC, CPX-AP
- * - Problems: German and English common issues
- * - Interfaces: PROFINET, EtherNet/IP, IO-Link, Modbus
- * - Combinations: Product + specific issues
+ * Each query is tagged with a relevanceLanguage to avoid running all queries twice.
+ * - German-specific queries → lang: 'de'
+ * - English-specific queries → lang: 'en'
+ * - Product/interface queries → lang: 'de' (default, finds multilingual content)
  */
-export const SEED_QUERIES = [
-  // Product families
-  'Festo CPX',
-  'Festo VTUG',
-  'Festo MPA',
-  'Festo CMMT-AS',
-  'Festo CECC',
-  'Festo CPX-AP',
+export const SEED_QUERIES: SeedQuery[] = [
+  // Product families (de — YouTube surfaces both DE and EN results for product names)
+  { query: 'Festo CPX', lang: 'de' },
+  { query: 'Festo VTUG', lang: 'de' },
+  { query: 'Festo MPA', lang: 'de' },
+  { query: 'Festo CMMT-AS', lang: 'de' },
+  { query: 'Festo CECC', lang: 'de' },
+  { query: 'Festo CPX-AP', lang: 'de' },
+  { query: 'Festo DSBC', lang: 'de' },
+  { query: 'Festo VTEM', lang: 'de' },
+  { query: 'Festo EHPS', lang: 'de' },
 
   // Problems (German)
-  'Festo Druck baut sich nicht auf',
-  'Festo startet nicht',
-  'Festo Fehlercode',
-  'Festo keine Kommunikation',
-  'Festo Inbetriebnahme',
-  'Festo Homing',
+  { query: 'Festo Druck baut sich nicht auf', lang: 'de' },
+  { query: 'Festo startet nicht', lang: 'de' },
+  { query: 'Festo Fehlercode', lang: 'de' },
+  { query: 'Festo keine Kommunikation', lang: 'de' },
+  { query: 'Festo Inbetriebnahme', lang: 'de' },
 
   // Problems (English)
-  'Festo no pressure',
-  'Festo error code',
-  'Festo commissioning',
+  { query: 'Festo no pressure', lang: 'en' },
+  { query: 'Festo error code', lang: 'en' },
+  { query: 'Festo commissioning', lang: 'en' },
 
-  // Interfaces
-  'Festo PROFINET',
-  'Festo EtherNet/IP',
-  'Festo IO-Link',
-  'Festo Modbus',
+  // Interfaces (de — technical terms are universal)
+  { query: 'Festo PROFINET', lang: 'de' },
+  { query: 'Festo EtherNet/IP', lang: 'de' },
+  { query: 'Festo IO-Link', lang: 'de' },
 
   // Specific combinations
-  'CMMT-AS E123',
-  'CPX valve terminal',
-];
+  { query: 'CMMT-AS E123', lang: 'de' },
+  { query: 'CPX valve terminal', lang: 'en' },
 
-/**
- * Get seed queries for video discovery
- * Currently returns static list, but async signature allows
- * future enhancement to fetch from database for dynamic management
- *
- * @returns Array of seed query strings
- */
-export async function getSeedQueries(): Promise<string[]> {
-  // Future: Fetch from database for admin-configurable queries
-  // For MVP, use static list targeting real user problems
-  return SEED_QUERIES;
-}
+  // Tutorials & software
+  { query: 'Festo Automation Suite', lang: 'de' },
+  { query: 'Festo Handling Guide', lang: 'de' },
+
+  // German terms
+  { query: 'Festo Wartung', lang: 'de' },
+  { query: 'Festo Konfiguration', lang: 'de' },
+  { query: 'Festo Pneumatik', lang: 'de' },
+
+  // English tutorials & guides
+  { query: 'Festo tutorial English', lang: 'en' },
+  { query: 'Festo commissioning guide', lang: 'en' },
+  { query: 'Festo servo drive setup', lang: 'en' },
+  { query: 'Festo pneumatic troubleshooting', lang: 'en' },
+  { query: 'Festo valve terminal configuration', lang: 'en' },
+
+  // English applications
+  { query: 'Festo pneumatic cylinder tutorial', lang: 'en' },
+  { query: 'Festo servo motor setup', lang: 'en' },
+  { query: 'Festo gripper configuration', lang: 'en' },
+];

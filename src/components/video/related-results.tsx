@@ -45,7 +45,7 @@ export function RelatedResults({
           return (
             <Link
               key={segment.id}
-              href={`/video/${segment.id}?lang=${lang}`}
+              href={`/video/${segment.video_id}?lang=${lang}&segment=${segment.id}`}
               className="block"
             >
               <Card className="hover:bg-accent/50 transition-colors">

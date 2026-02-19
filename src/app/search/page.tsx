@@ -1,13 +1,35 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { SearchInput } from '@/components/search/search-input';
 import { FilterSidebar, type SourceFilter } from '@/components/results/filter-sidebar';
 import { ResultsList } from '@/components/results/results-list';
-import { VideoPreview } from '@/components/video/video-preview';
 import type { SearchResultSegment } from '@/types/search';
+import type { GroupedVideoResult } from '@/components/results/video-result-card';
 import type { Dictionary, Locale } from '@/lib/dictionaries/get-dictionary';
+
+function groupByVideo(segments: SearchResultSegment[]): GroupedVideoResult[] {
+  const map = new Map<string, GroupedVideoResult>();
+  for (const seg of segments) {
+    const existing = map.get(seg.video_id);
+    if (existing) {
+      existing.matchCount++;
+    } else {
+      map.set(seg.video_id, {
+        video_id: seg.video_id,
+        video_youtube_id: seg.video_youtube_id,
+        video_title: seg.video_title,
+        video_thumbnail_url: seg.video_thumbnail_url,
+        video_duration_seconds: seg.video_duration_seconds,
+        channel_name: seg.channel_name,
+        channel_official_status: seg.channel_official_status,
+        bestSegment: seg,
+        matchCount: 1,
+      });
+    }
+  }
+  return Array.from(map.values());
+}
 
 // Inner component that uses useSearchParams
 function SearchPageContent() {
@@ -21,7 +43,6 @@ function SearchPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
-  const [selectedSegment, setSelectedSegment] = useState<SearchResultSegment | null>(null);
 
   // Load dictionary
   useEffect(() => {
@@ -33,18 +54,15 @@ function SearchPageContent() {
   }, [lang]);
 
   // Fetch ALL results (no source filter in API call - filter client-side only)
-  // This ensures correct counts for all sources in the sidebar
   useEffect(() => {
     const fetchResults = async () => {
       setLoading(true);
       setError(null);
       try {
-        // Always fetch ALL results - source filtering is client-side only
         const response = await fetch(
           `/api/search?q=${encodeURIComponent(query)}&source=all`
         );
         const data = await response.json();
-        // Handle error responses (API returns { error: string } on failure)
         if (!response.ok || !data.results) {
           const errorMessage = data.error || 'Unknown error';
           console.error('Search API error:', errorMessage);
@@ -64,14 +82,7 @@ function SearchPageContent() {
     };
 
     fetchResults();
-  }, [query]); // Note: sourceFilter NOT in deps - we fetch all, filter client-side
-
-  // Calculate counts for filter sidebar (from ALL results)
-  const resultCounts = {
-    all: results.length,
-    official: results.filter((r) => r.channel_official_status === 'official').length,
-    community: results.filter((r) => r.channel_official_status === 'community').length,
-  };
+  }, [query]);
 
   // Filter results based on source (client-side only)
   const filteredResults =
@@ -79,14 +90,18 @@ function SearchPageContent() {
       ? results
       : results.filter((r) => r.channel_official_status === sourceFilter);
 
-  // Reset selection when filtered results change
-  useEffect(() => {
-    if (filteredResults.length > 0) {
-      setSelectedSegment(filteredResults[0]);
-    } else {
-      setSelectedSegment(null);
-    }
-  }, [sourceFilter, results]);
+  // Group filtered segments by video
+  const groupedVideos = useMemo(() => groupByVideo(filteredResults), [filteredResults]);
+
+  // Count unique videos per source for the filter sidebar
+  const resultCounts = useMemo(() => {
+    const allVideos = groupByVideo(results);
+    return {
+      all: allVideos.length,
+      official: allVideos.filter((v) => v.channel_official_status === 'official').length,
+      community: allVideos.filter((v) => v.channel_official_status === 'community').length,
+    };
+  }, [results]);
 
   if (!dict) {
     return (
@@ -97,19 +112,7 @@ function SearchPageContent() {
   }
 
   return (
-    <div className="flex h-screen flex-col">
-      {/* Search bar */}
-      <div className="border-b px-4 py-3">
-        <div className="max-w-2xl">
-          <SearchInput
-            placeholder={dict.searchPlaceholder}
-            buttonText={dict.searchButton}
-            lang={lang}
-            defaultValue={query}
-          />
-        </div>
-      </div>
-
+    <div className="flex h-screen flex-col bg-background">
       {/* Main content area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Filter sidebar */}
@@ -143,30 +146,17 @@ function SearchPageContent() {
           </div>
         ) : (
           <ResultsList
-            segments={filteredResults}
-            selectedId={selectedSegment?.id || null}
-            onSelect={setSelectedSegment}
+            videos={groupedVideos}
+            lang={lang}
             labels={{
               official: dict.officialLabel,
               community: dict.communityLabel,
               segmentDuration: dict.segmentDuration,
+              matchingSegments: dict.matchingSegments,
               noResults: dict.noResults,
             }}
           />
         )}
-
-        {/* Video preview panel */}
-        <VideoPreview
-          segment={selectedSegment}
-          labels={{
-            official: dict.officialLabel,
-            community: dict.communityLabel,
-            openOnYouTube: dict.openOnYouTube,
-            segmentDuration: dict.segmentDuration,
-            videoDuration: dict.videoDuration,
-            noTranscriptNotice: dict.noTranscriptNotice,
-          }}
-        />
       </div>
     </div>
   );

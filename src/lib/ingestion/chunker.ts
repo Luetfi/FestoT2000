@@ -61,18 +61,38 @@ export function chunkTranscript(
         characterCount: currentText.trim().length,
       });
 
-      // Start new chunk with overlap
-      // Take last N characters for overlap
+      // Start new chunk with overlap, snapped to sentence boundary
       if (currentText.length > overlapSize) {
-        const overlapText = currentText.slice(-overlapSize);
+        const rawOverlap = currentText.slice(-overlapSize);
+
+        // Try to snap overlap to the first sentence boundary
+        // (punctuation followed by whitespace and uppercase letter)
+        const sentenceMatch = rawOverlap.match(/[.!?]\s+([A-ZÄÖÜ])/);
+        let overlapText: string;
+        let charsDropped: number;
+
+        if (sentenceMatch && sentenceMatch.index !== undefined) {
+          const sentenceStart = sentenceMatch.index + sentenceMatch[0].length - 1;
+          // Only snap if we keep at least 30% of overlap for context
+          if (sentenceStart < rawOverlap.length * 0.7) {
+            overlapText = rawOverlap.slice(sentenceStart);
+            charsDropped = overlapSize - overlapText.length;
+          } else {
+            overlapText = rawOverlap;
+            charsDropped = 0;
+          }
+        } else {
+          overlapText = rawOverlap;
+          charsDropped = 0;
+        }
 
         // Find approximate segment index for overlap start
-        // This is approximate - we use the last segment's timestamp
+        // Adjust for any characters dropped by sentence snapping
         const overlapStartOffset =
           segments[lastSegmentIndex].offset +
           Math.floor(
             (segments[lastSegmentIndex].duration *
-              (currentText.length - overlapSize)) /
+              (currentText.length - overlapSize + charsDropped)) /
               currentText.length
           );
 

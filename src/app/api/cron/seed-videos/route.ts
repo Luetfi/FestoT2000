@@ -4,7 +4,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { inngest } from '@/lib/jobs/inngest';
-import { getSeedQueries } from '@/lib/ingestion/seeds';
+import { SEED_QUERIES } from '@/lib/ingestion/seeds';
 
 // Initialize YouTube client lazily
 let _youtube: ReturnType<typeof google.youtube> | null = null;
@@ -47,14 +47,13 @@ export async function GET(request: NextRequest) {
 
   try {
     const youtube = getYouTube();
-    const seedQueries = await getSeedQueries();
     const videoIds: string[] = [];
     const errors: string[] = [];
 
     // Search for each seed query
     // Note: search.list costs 100 quota units per call (vs 1 for videos.list)
     // Limit to first 10 results per query to conserve quota
-    for (const query of seedQueries) {
+    for (const { query, lang } of SEED_QUERIES) {
       try {
         const response = await youtube.search.list({
           part: ['id'],
@@ -62,6 +61,7 @@ export async function GET(request: NextRequest) {
           type: ['video'],
           maxResults: 10, // Limit per query for quota management
           order: 'date', // Prioritize recent videos
+          relevanceLanguage: lang,
         });
 
         const ids = response.data.items
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      queriesSearched: seedQueries.length,
+      queriesSearched: SEED_QUERIES.length,
       queryErrors: errors.length,
       totalVideosFound: videoIds.length,
       uniqueVideosQueued: uniqueVideoIds.length,
