@@ -2,8 +2,9 @@
 // Requires INGESTION_SECRET header for access
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import { inngest } from '@/lib/jobs/inngest';
-import { ratelimit } from '@/lib/rate-limit';
+import { ingestVideo } from '@/lib/ingestion/pipeline';
+
+export const maxDuration = 300; // 5 minutes for batch processing
 
 export async function POST(request: NextRequest) {
   // Verify secret header
@@ -25,19 +26,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Rate limiting (even for authenticated requests)
-  if (ratelimit) {
-    const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
-    const { success } = await ratelimit.limit(`ingest:${ip}`);
-
-    if (!success) {
-      return NextResponse.json(
-        { error: 'Zu viele Anfragen – bitte kurz warten' },
-        { status: 429 }
-      );
-    }
-  }
-
   // Parse request body
   let body: { videoId?: string; videoIds?: string[] };
   try {
@@ -53,21 +41,17 @@ export async function POST(request: NextRequest) {
 
   // Handle single video
   if (videoId && typeof videoId === 'string') {
-    await inngest.send({
-      name: 'video/process',
-      data: { videoId, priority: 'normal' },
-    });
+    const result = await ingestVideo(videoId);
 
     return NextResponse.json({
-      success: true,
-      queued: 1,
+      success: result.status === 'success',
       videoId,
+      result,
     });
   }
 
   // Handle batch of videos
   if (videoIds && Array.isArray(videoIds) && videoIds.length > 0) {
-    // Validate all IDs are strings
     if (!videoIds.every((id) => typeof id === 'string')) {
       return NextResponse.json(
         { error: 'All videoIds must be strings' },
@@ -75,15 +59,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await inngest.send({
-      name: 'batch/process',
-      data: { videoIds, source: 'manual' },
-    });
+    const results = [];
+    for (const id of videoIds) {
+      console.log(`Ingesting ${id} (${results.length + 1}/${videoIds.length})...`);
+      const result = await ingestVideo(id);
+      results.push(result);
+    }
+
+    const succeeded = results.filter((r) => r.status === 'success').length;
+    const failed = results.filter((r) => r.status === 'error').length;
+    const noTranscript = results.filter((r) => r.status === 'no_transcript').length;
 
     return NextResponse.json({
       success: true,
-      queued: videoIds.length,
-      source: 'manual',
+      total: videoIds.length,
+      succeeded,
+      noTranscript,
+      failed,
+      results,
     });
   }
 

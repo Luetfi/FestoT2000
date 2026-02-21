@@ -1,16 +1,11 @@
 // OpenAI embeddings integration test
 import { NextResponse } from 'next/server';
 import { generateEmbedding, EMBEDDING_DIMENSIONS, validateEmbedding } from '@/lib/openai/embeddings';
-import { rateLimitMiddleware } from '@/lib/rate-limit';
 
 export async function GET(request: Request) {
   if (process.env.NODE_ENV === 'production') {
     return new NextResponse(null, { status: 404 });
   }
-  // Apply rate limiting
-  const rateLimitResponse = await rateLimitMiddleware(request);
-  if (rateLimitResponse) return rateLimitResponse;
-
   // Allow custom text via query param for testing
   const { searchParams } = new URL(request.url);
   const text = searchParams.get('text') || 'Festo pneumatische Zylinder Fehlersuche';

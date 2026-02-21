@@ -1,10 +1,12 @@
 // Cron job endpoint for periodic seed query indexing
-// Protected by CRON_SECRET, searches YouTube for seed queries
+// Searches YouTube for seed queries and processes found videos directly
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
-import { inngest } from '@/lib/jobs/inngest';
+import { ingestVideo } from '@/lib/ingestion/pipeline';
 import { SEED_QUERIES } from '@/lib/ingestion/seeds';
+
+export const maxDuration = 300; // 5 minutes for batch processing
 
 // Initialize YouTube client lazily
 let _youtube: ReturnType<typeof google.youtube> | null = null;
@@ -51,16 +53,14 @@ export async function GET(request: NextRequest) {
     const errors: string[] = [];
 
     // Search for each seed query
-    // Note: search.list costs 100 quota units per call (vs 1 for videos.list)
-    // Limit to first 10 results per query to conserve quota
     for (const { query, lang } of SEED_QUERIES) {
       try {
         const response = await youtube.search.list({
           part: ['id'],
           q: query,
           type: ['video'],
-          maxResults: 10, // Limit per query for quota management
-          order: 'date', // Prioritize recent videos
+          maxResults: 10,
+          order: 'date',
           relevanceLanguage: lang,
         });
 
@@ -70,7 +70,6 @@ export async function GET(request: NextRequest) {
 
         videoIds.push(...ids);
       } catch (error: unknown) {
-        // Log and continue on individual query failures
         const errorMessage = `Query "${query}" failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
         console.error(errorMessage);
         errors.push(errorMessage);
@@ -80,23 +79,27 @@ export async function GET(request: NextRequest) {
     // Deduplicate video IDs
     const uniqueVideoIds = Array.from(new Set(videoIds));
 
-    // Queue batch processing if we found videos
-    if (uniqueVideoIds.length > 0) {
-      await inngest.send({
-        name: 'batch/process',
-        data: {
-          videoIds: uniqueVideoIds,
-          source: 'cron',
-        },
-      });
+    // Process videos directly
+    const results = [];
+    for (const videoId of uniqueVideoIds) {
+      console.log(`Ingesting ${videoId} (${results.length + 1}/${uniqueVideoIds.length})...`);
+      const result = await ingestVideo(videoId);
+      results.push(result);
     }
+
+    const succeeded = results.filter((r) => r.status === 'success').length;
+    const failed = results.filter((r) => r.status === 'error').length;
+    const noTranscript = results.filter((r) => r.status === 'no_transcript').length;
 
     return NextResponse.json({
       success: true,
       queriesSearched: SEED_QUERIES.length,
       queryErrors: errors.length,
       totalVideosFound: videoIds.length,
-      uniqueVideosQueued: uniqueVideoIds.length,
+      uniqueVideosProcessed: uniqueVideoIds.length,
+      succeeded,
+      noTranscript,
+      failed,
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error: unknown) {

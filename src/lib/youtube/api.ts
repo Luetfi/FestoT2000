@@ -150,6 +150,58 @@ export function classifyChannel(channelName: string): 'official' | 'community' {
 }
 
 /**
+ * Fetch all video IDs from a channel's "Uploads" playlist.
+ * Uses channels.list (1 unit) to get the uploads playlist ID,
+ * then playlistItems.list (1 unit per page of 50) to paginate through all videos.
+ *
+ * @param channelId - YouTube channel ID (e.g. UC...)
+ * @param maxVideos - Safety cap to limit API quota usage (default 500)
+ * @returns Array of video IDs in upload order (newest first)
+ */
+export async function fetchChannelVideoIds(
+  channelId: string,
+  maxVideos = 500
+): Promise<string[]> {
+  const youtube = getYouTube();
+
+  // Step 1: Get the "Uploads" playlist ID from the channel (1 quota unit)
+  const channelResponse = await youtube.channels.list({
+    part: ['contentDetails'],
+    id: [channelId],
+  });
+
+  const uploadsPlaylistId =
+    channelResponse.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+
+  if (!uploadsPlaylistId) {
+    throw new Error(`Could not find uploads playlist for channel: ${channelId}`);
+  }
+
+  // Step 2: Paginate through the uploads playlist (1 quota unit per page of 50)
+  const videoIds: string[] = [];
+  let nextPageToken: string | undefined;
+
+  do {
+    const response = await youtube.playlistItems.list({
+      part: ['contentDetails'],
+      playlistId: uploadsPlaylistId,
+      maxResults: 50,
+      pageToken: nextPageToken,
+    });
+
+    const items = response.data.items ?? [];
+    for (const item of items) {
+      const videoId = item.contentDetails?.videoId;
+      if (videoId) videoIds.push(videoId);
+    }
+
+    nextPageToken = response.data.nextPageToken ?? undefined;
+  } while (nextPageToken && videoIds.length < maxVideos);
+
+  return videoIds.slice(0, maxVideos);
+}
+
+/**
  * Search YouTube for videos matching a query
  * Filters for videos with closed captions available
  *

@@ -1,7 +1,6 @@
 // Health check endpoint - verifies all core services
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { rateLimitMiddleware } from '@/lib/rate-limit';
 
 interface ServiceStatus {
   name: string;
@@ -10,11 +9,7 @@ interface ServiceStatus {
   error?: string;
 }
 
-export async function GET(request: Request) {
-  // Apply rate limiting
-  const rateLimitResponse = await rateLimitMiddleware(request);
-  if (rateLimitResponse) return rateLimitResponse;
-
+export async function GET() {
   const services: ServiceStatus[] = [];
 
   // Test Supabase connection
@@ -41,19 +36,10 @@ export async function GET(request: Request) {
     });
   }
 
-  // Test rate limiter
-  const rateLimitConfigured = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
-  services.push({
-    name: 'rate_limiter',
-    status: rateLimitConfigured ? 'ok' : 'error',
-    error: rateLimitConfigured ? undefined : 'Not configured (missing Upstash env vars)',
-  });
-
   // Check environment variables are set (don't call APIs here, just verify config)
   const envChecks = [
     { name: 'youtube_api_key', envVar: 'YOUTUBE_API_KEY' },
     { name: 'openai_api_key', envVar: 'OPENAI_API_KEY' },
-    { name: 'upstash_redis', envVar: 'UPSTASH_REDIS_REST_URL' },
   ];
 
   for (const check of envChecks) {

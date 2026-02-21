@@ -2,7 +2,6 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { generateEmbedding } from '@/lib/openai/embeddings';
-import { rateLimitMiddleware } from '@/lib/rate-limit';
 import {
   parseSearchQuery,
   generateCacheKey,
@@ -13,11 +12,7 @@ import { enrichSearchResults, applyBoosts } from '@/lib/search/enrichment';
 import type { SearchResponse, SearchResultSegment } from '@/types/search';
 
 export async function GET(request: NextRequest) {
-  // 1. Rate limit check
-  const rateLimitResponse = await rateLimitMiddleware(request);
-  if (rateLimitResponse) return rateLimitResponse;
-
-  // 2. Parse query params
+  // 1. Parse query params
   const searchParams = request.nextUrl.searchParams;
   const query = searchParams.get('q') || '';
   const language = (searchParams.get('lang') as 'de' | 'en') || 'de';
