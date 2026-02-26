@@ -86,15 +86,12 @@ export function chunkTranscript(
           charsDropped = 0;
         }
 
-        // Find approximate segment index for overlap start
-        // Adjust for any characters dropped by sentence snapping
+        // Estimate overlap start time proportionally within the chunk's time range
+        const overlapFraction =
+          (currentText.length - overlapSize + charsDropped) / currentText.length;
         const overlapStartOffset =
-          segments[lastSegmentIndex].offset +
-          Math.floor(
-            (segments[lastSegmentIndex].duration *
-              (currentText.length - overlapSize + charsDropped)) /
-              currentText.length
-          );
+          currentStartOffset +
+          Math.floor((currentEndOffset - currentStartOffset) * overlapFraction);
 
         currentText = overlapText;
         currentStartOffset = overlapStartOffset;

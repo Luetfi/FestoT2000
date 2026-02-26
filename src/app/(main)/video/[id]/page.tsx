@@ -7,12 +7,12 @@ import type { OfficialStatus } from '@/types/search';
 
 interface VideoPageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ lang?: string; segment?: string }>;
+  searchParams: Promise<{ lang?: string; segment?: string; q?: string }>;
 }
 
 export default async function VideoPage({ params, searchParams }: VideoPageProps) {
   const { id } = await params;
-  const { lang: langParam, segment: segmentParam } = await searchParams;
+  const { lang: langParam, segment: segmentParam, q: queryParam } = await searchParams;
   const lang = isValidLocale(langParam) ? langParam : defaultLocale;
   const dict = await getDictionary(lang);
 
@@ -54,13 +54,14 @@ export default async function VideoPage({ params, searchParams }: VideoPageProps
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: segmentRows }: { data: any[] | null } = await supabase
     .from('segments')
-    .select('id, text, start_time, end_time')
+    .select('id, text, summary, start_time, end_time')
     .eq('video_id', videoId)
     .order('start_time', { ascending: true });
 
   const segments = (segmentRows || []).map((row) => ({
     id: String(row.id),
     text: row.text,
+    summary: row.summary ?? null,
     start_time: row.start_time,
     end_time: row.end_time,
   }));
@@ -81,6 +82,7 @@ export default async function VideoPage({ params, searchParams }: VideoPageProps
           }}
           segments={segments}
           initialSegmentId={segmentParam ?? null}
+          searchQuery={queryParam ?? null}
           lang={lang}
           labels={{
             back: dict.back,
@@ -92,6 +94,14 @@ export default async function VideoPage({ params, searchParams }: VideoPageProps
             chapters: dict.chapters,
             segmentCount: dict.segmentCount,
             noChapters: dict.noChapters,
+            transcript: dict.transcript,
+            generatingExplanation: dict.generatingExplanation,
+            explanationError: dict.explanationError,
+            yourAnswer: dict.yourAnswer,
+            allChapters: dict.allChapters,
+            videoDescription: dict.videoDescription,
+            showDescription: dict.showDescription,
+            hideDescription: dict.hideDescription,
           }}
         />
       </main>

@@ -1,4 +1,12 @@
 import type { ParsedQuery } from './types';
+import {
+  FESTO_PRODUCTS,
+  FESTO_CATEGORIES,
+  findMatchingProducts,
+  findMatchingCategories,
+  type FestoProduct,
+  type FestoProductCategory,
+} from './festo-products';
 
 // Error code patterns for detection
 const ERROR_CODE_PATTERNS = [
@@ -7,104 +15,46 @@ const ERROR_CODE_PATTERNS = [
   /\berror\s*code\s*\d+/gi, // matches "error code 123"
 ];
 
-// Festo product categories with matching keywords for video filtering
+// Re-export product categories for backward compatibility
 export interface ProductCategory {
   id: string;
   label: string;
   keywords: string[];
 }
 
-export const PRODUCT_CATEGORIES: ProductCategory[] = [
-  {
-    id: 'drives-actuators',
-    label: 'Antriebe & Aktuatoren',
-    keywords: ['DSBC', 'DSBG', 'DSBF', 'DNC', 'ADN', 'ADNG', 'DFM', 'DGC', 'DGST', 'EGC', 'ELGA', 'EPCO', 'zylinder', 'cylinder', 'actuator', 'aktuator', 'linearantrieb'],
-  },
-  {
-    id: 'motors-drives',
-    label: 'Motoren und Antriebsregler',
-    keywords: ['CMMT-AS', 'CMMT-ST', 'CMMT-MP', 'EMMT', 'EMME', 'EMMS', 'servo', 'motor', 'antriebsregler', 'drive controller'],
-  },
-  {
-    id: 'grippers',
-    label: 'Greifer',
-    keywords: ['DHPS', 'EHPS', 'HGPL', 'HGPT', 'HGPP', 'DHEB', 'greifer', 'gripper'],
-  },
-  {
-    id: 'handling-robots',
-    label: 'Handlingsysteme und Industrieroboter',
-    keywords: ['EXCM', 'EXCT', 'ELGR', 'handling', 'roboter', 'robot', 'portalsystem', 'gantry'],
-  },
-  {
-    id: 'vacuum',
-    label: 'Vakuumtechnik',
-    keywords: ['OVEM', 'VADM', 'VN-', 'vakuum', 'vacuum', 'sauggreifer', 'suction'],
-  },
-  {
-    id: 'valves',
-    label: 'Ventile und Ventilinseln',
-    keywords: ['VTUG', 'MPA-S', 'MPA-L', 'VTSA', 'VTOC', 'CPX-GE', 'VSVA', 'VUVG', 'VUVS', 'ventil', 'valve', 'ventilinsel', 'valve terminal'],
-  },
-  {
-    id: 'motion-terminal',
-    label: 'Motion Terminal',
-    keywords: ['VTEM', 'VAEM', 'motion terminal', 'motion app'],
-  },
-  {
-    id: 'sensors',
-    label: 'Sensoren',
-    keywords: ['SIEN', 'SPAU', 'SPAN', 'SRBS', 'SME', 'SMT', 'SOEG', 'sensor', 'näherungsschalter', 'proximity', 'drucksensor', 'pressure sensor'],
-  },
-  {
-    id: 'air-preparation',
-    label: 'Druckluftaufbereitung',
-    keywords: ['MS4', 'MS6', 'MS9', 'MSB', 'LFR', 'LFMA', 'druckluft', 'air preparation', 'wartungseinheit', 'service unit', 'filter regulator'],
-  },
-  {
-    id: 'connection',
-    label: 'Verbindungstechnik',
-    keywords: ['QS', 'NPQM', 'PUN', 'PAN', 'CRQS', 'schlauch', 'tubing', 'fitting', 'verbindung', 'connection'],
-  },
-  {
-    id: 'controls-remote-io',
-    label: 'Steuerungstechnik und Remote I/O',
-    keywords: ['CPX', 'CPX-AP', 'CPX-E', 'CECC', 'CECC-X', 'CECX', 'CDPX', 'steuerung', 'controller', 'remote i/o', 'remote io', 'plc', 'sps'],
-  },
-  {
-    id: 'software',
-    label: 'Software',
-    keywords: ['automation suite', 'festo configuration tool', 'fct', 'handling guide', 'schematic solution', 'positioning drives', 'software'],
-  },
-  {
-    id: 'ready-to-install',
-    label: 'Einbaufertige Lösungen',
-    keywords: ['einbaufertig', 'ready-to-install', 'ready to install', 'subsystem'],
-  },
-  {
-    id: 'function-specific',
-    label: 'Funktionsspezifische Systeme',
-    keywords: ['funktionsspezifisch', 'function-specific', 'dispensing', 'dosier', 'press'],
-  },
-  {
-    id: 'other-pneumatic',
-    label: 'Sonstige pneumatische Komponenten',
-    keywords: ['pneumatik', 'pneumatic', 'schalldämpfer', 'silencer', 'drosselventil', 'flow control'],
-  },
-  {
-    id: 'services',
-    label: 'Services',
-    keywords: ['service', 'training', 'schulung', 'support', 'wartung', 'maintenance', 'energy saving'],
-  },
-];
+/** Backward-compatible PRODUCT_CATEGORIES derived from FESTO_CATEGORIES */
+export const PRODUCT_CATEGORIES: ProductCategory[] = FESTO_CATEGORIES.map((cat) => ({
+  id: cat.id,
+  label: cat.label_de,
+  keywords: [
+    ...cat.keywords,
+    // Include all product type designations in this category
+    ...FESTO_PRODUCTS.filter((p) => p.category === cat.id).flatMap((p) => [
+      p.type,
+      ...p.synonyms.filter((s) => s.length >= 3 && /^[A-Z]/.test(s)),
+    ]),
+  ],
+}));
 
-// Flat list of all product keywords (derived from categories) for search query enhancement
-export const PRODUCT_KEYWORDS = Array.from(
-  new Set(PRODUCT_CATEGORIES.flatMap((c) => c.keywords))
+/**
+ * Flat list of all product keywords for search query enhancement.
+ * Now includes all product type designations from the comprehensive database.
+ */
+export const PRODUCT_KEYWORDS: string[] = Array.from(
+  new Set([
+    // All product type designations
+    ...FESTO_PRODUCTS.map((p) => p.type),
+    // All category keywords
+    ...FESTO_CATEGORIES.flatMap((c) => c.keywords),
+  ])
 );
 
 /**
- * Parse search query to extract error codes and product keywords
- * Enhances query with detected terms for full-text search boosting
+ * Parse search query to extract error codes, product matches, and enhance query.
+ *
+ * Uses the comprehensive Festo product database with 180+ products for
+ * accurate matching. Detects product type designations (DSBC, CMMT, CPX, etc.)
+ * and enhances the query with related terms for better full-text search results.
  */
 export function parseSearchQuery(query: string): ParsedQuery {
   const errorCodes = new Set<string>();
@@ -121,24 +71,72 @@ export function parseSearchQuery(query: string): ParsedQuery {
     }
   }
 
-  // Detect product keywords (case-insensitive substring match)
-  const productKeywords = PRODUCT_KEYWORDS.filter((keyword) =>
-    query.toUpperCase().includes(keyword.toUpperCase())
-  );
+  // Find matching products from the comprehensive database
+  const matchedProducts = findMatchingProducts(query);
 
-  // Build enhanced query by appending detected terms
+  // Find matching categories
+  const matchedCategories = findMatchingCategories(query);
+
+  // Collect all matched product keywords (type designations)
+  const productKeywords = [
+    ...matchedProducts.map((p) => p.type),
+    ...detectCategoryKeywords(query),
+  ];
+
+  // Deduplicate
+  const uniqueProductKeywords = Array.from(new Set(productKeywords));
+
+  // Build enhanced query with related terms for better full-text matching
   let enhancedQuery = query;
+
   if (errorCodes.size > 0) {
     enhancedQuery += ' ' + Array.from(errorCodes).join(' ');
   }
-  if (productKeywords.length > 0) {
-    enhancedQuery += ' ' + productKeywords.join(' ');
+
+  if (matchedProducts.length > 0) {
+    // Add product names (both DE and EN) for broader matching
+    const relatedTerms = matchedProducts.flatMap((p) => [
+      p.type,
+      p.name_de,
+      p.name_en,
+    ]);
+    enhancedQuery += ' ' + relatedTerms.join(' ');
+  }
+
+  if (matchedCategories.length > 0 && matchedProducts.length === 0) {
+    // Only add category keywords when no specific product was matched
+    const categoryTerms = matchedCategories.flatMap((c) => c.keywords.slice(0, 3));
+    enhancedQuery += ' ' + categoryTerms.join(' ');
   }
 
   return {
     originalQuery: query,
     errorCodes: Array.from(errorCodes),
-    productKeywords,
+    productKeywords: uniqueProductKeywords,
     enhancedQuery,
   };
 }
+
+/**
+ * Detect category-level keywords in the query.
+ * These are general terms like "zylinder", "ventil", "sensor" that indicate
+ * a product category without specifying a specific product type.
+ */
+function detectCategoryKeywords(query: string): string[] {
+  const queryLower = query.toLowerCase();
+  const matches: string[] = [];
+
+  for (const category of FESTO_CATEGORIES) {
+    for (const keyword of category.keywords) {
+      if (queryLower.includes(keyword.toLowerCase()) && keyword.length >= 3) {
+        matches.push(keyword);
+      }
+    }
+  }
+
+  return matches;
+}
+
+// Re-export product database helpers for use in other modules
+export { findMatchingProducts, findMatchingCategories, FESTO_PRODUCTS, FESTO_CATEGORIES };
+export type { FestoProduct, FestoProductCategory };

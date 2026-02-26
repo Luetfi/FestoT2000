@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/seed-videos",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/sync-channels",
+      "schedule": "0 3 * * *"
     }
   ]
 }

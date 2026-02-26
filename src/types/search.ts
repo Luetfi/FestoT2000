@@ -12,6 +12,7 @@ export interface SearchResultSegment {
   start_time: number;
   end_time: number;
   similarity: number;
+  semantic_similarity: number;
 
   // Video data (denormalized)
   video_id: string;

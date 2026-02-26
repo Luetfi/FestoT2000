@@ -10,12 +10,4 @@ export interface ParsedQuery {
 export interface SearchParams {
   query: string;
   language: 'de' | 'en';
-  source: 'all' | 'official' | 'community';
-}
-
-export interface CachedSearchResult {
-  query: string;
-  results: SearchResultSegment[];
-  total: number;
-  cachedAt: string;
 }

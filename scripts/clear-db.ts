@@ -14,7 +14,7 @@ async function main() {
   });
 
   // Delete in foreign-key-safe order
-  const tables = ['feedback', 'segments', 'transcripts', 'videos', 'channels', 'search_cache'];
+  const tables = ['segments', 'transcripts', 'videos', 'channels'];
 
   console.log('Clearing all tables...\n');
 

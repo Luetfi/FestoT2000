@@ -2,6 +2,7 @@ import { VideoResultCard, type GroupedVideoResult } from './video-result-card';
 
 interface ResultsListProps {
   videos: GroupedVideoResult[];
+  query: string;
   lang: string;
   labels: {
     official: string;
@@ -12,7 +13,7 @@ interface ResultsListProps {
   };
 }
 
-export function ResultsList({ videos, lang, labels }: ResultsListProps) {
+export function ResultsList({ videos, query, lang, labels }: ResultsListProps) {
   if (videos.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
@@ -27,6 +28,7 @@ export function ResultsList({ videos, lang, labels }: ResultsListProps) {
         <VideoResultCard
           key={video.video_id}
           video={video}
+          query={query}
           lang={lang}
           labels={{
             official: labels.official,

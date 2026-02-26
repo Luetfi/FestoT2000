@@ -3,7 +3,6 @@
 
 export type OfficialStatus = 'official' | 'community' | 'unknown';
 export type SourceType = 'manual' | 'auto' | 'unknown';
-export type Vote = 'helpful' | 'not_helpful';
 
 export interface Channel {
   id: number;
@@ -44,28 +43,11 @@ export interface Segment {
   video_id: number | null;
   transcript_id: number | null;
   text: string;
+  summary: string | null;
+  explanation: string | null;
   start_time: number;
   end_time: number;
   embedding: number[] | null;
-  created_at: string;
-}
-
-export interface SearchCache {
-  id: number;
-  query_hash: string;
-  query_text: string;
-  language: string;
-  filters: Record<string, unknown>;
-  results: unknown;
-  created_at: string;
-  expires_at: string;
-}
-
-export interface Feedback {
-  id: number;
-  segment_id: number | null;
-  query_text: string | null;
-  vote: Vote;
   created_at: string;
 }
 
@@ -92,16 +74,6 @@ export interface Database {
         Row: Segment;
         Insert: Omit<Segment, 'id' | 'created_at'> & { id?: number };
         Update: Partial<Omit<Segment, 'id' | 'created_at'>>;
-      };
-      search_cache: {
-        Row: SearchCache;
-        Insert: Omit<SearchCache, 'id' | 'created_at' | 'expires_at'> & { id?: number };
-        Update: Partial<Omit<SearchCache, 'id' | 'created_at'>>;
-      };
-      feedback: {
-        Row: Feedback;
-        Insert: Omit<Feedback, 'id' | 'created_at'> & { id?: number };
-        Update: Partial<Omit<Feedback, 'id' | 'created_at'>>;
       };
     };
     Functions: {
@@ -136,6 +108,7 @@ export interface Database {
           start_time: number;
           end_time: number;
           rrf_score: number;
+          semantic_similarity: number;
         }[];
       };
     };
@@ -160,4 +133,5 @@ export interface HybridSearchResult {
   start_time: number;
   end_time: number;
   rrf_score: number;
+  semantic_similarity: number;
 }

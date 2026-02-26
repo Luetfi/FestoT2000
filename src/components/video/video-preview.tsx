@@ -10,6 +10,7 @@ import { formatTimeRange, formatDuration } from '@/types/search';
 
 interface VideoPreviewProps {
   segment: SearchResultSegment | null;
+  query: string;
   lang: string;
   labels: {
     official: string;
@@ -22,7 +23,7 @@ interface VideoPreviewProps {
   };
 }
 
-export function VideoPreview({ segment, lang, labels }: VideoPreviewProps) {
+export function VideoPreview({ segment, query, lang, labels }: VideoPreviewProps) {
   if (!segment) {
     return (
       <aside className="w-[420px] border-l bg-muted/30 flex items-center justify-center">
@@ -98,7 +99,7 @@ export function VideoPreview({ segment, lang, labels }: VideoPreviewProps) {
 
         {/* View details button */}
         <Button asChild variant="default" className="w-full">
-          <Link href={`/video/${segment.video_id}?lang=${lang}&segment=${segment.id}`}>
+          <Link href={`/video/${segment.video_id}?lang=${lang}&segment=${segment.id}${query ? `&q=${encodeURIComponent(query)}` : ''}`}>
             {labels.viewDetails}
           </Link>
         </Button>

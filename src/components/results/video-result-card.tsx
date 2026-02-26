@@ -19,6 +19,7 @@ export interface GroupedVideoResult {
 
 interface VideoResultCardProps {
   video: GroupedVideoResult;
+  query: string;
   lang: string;
   labels: {
     official: string;
@@ -28,10 +29,10 @@ interface VideoResultCardProps {
   };
 }
 
-export function VideoResultCard({ video, lang, labels }: VideoResultCardProps) {
+export function VideoResultCard({ video, query, lang, labels }: VideoResultCardProps) {
   const isOfficial = video.channel_official_status === 'official';
   const timeRange = formatTimeRange(video.bestSegment.start_time, video.bestSegment.end_time);
-  const href = `/video/${video.video_id}?lang=${lang}&segment=${video.bestSegment.id}`;
+  const href = `/video/${video.video_id}?lang=${lang}&segment=${video.bestSegment.id}${query ? `&q=${encodeURIComponent(query)}` : ''}`;
 
   return (
     <Link href={href} className="block group">

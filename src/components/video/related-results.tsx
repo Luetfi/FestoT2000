@@ -9,6 +9,7 @@ import { formatTimeRange } from '@/types/search';
 interface RelatedResultsProps {
   currentSegmentId: string;
   segments: SearchResultSegment[];
+  query: string;
   lang: string;
   labels: {
     official: string;
@@ -21,6 +22,7 @@ interface RelatedResultsProps {
 export function RelatedResults({
   currentSegmentId,
   segments,
+  query,
   lang,
   labels,
   maxResults = 5,
@@ -45,7 +47,7 @@ export function RelatedResults({
           return (
             <Link
               key={segment.id}
-              href={`/video/${segment.video_id}?lang=${lang}&segment=${segment.id}`}
+              href={`/video/${segment.video_id}?lang=${lang}&segment=${segment.id}${query ? `&q=${encodeURIComponent(query)}` : ''}`}
               className="block"
             >
               <Card className="hover:bg-accent/50 transition-colors">

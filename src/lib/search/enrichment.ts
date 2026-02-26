@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { HybridSearchResult } from '@/lib/supabase/types';
 import { SearchResultSegment, OfficialStatus } from '@/types/search';
 import { ParsedQuery } from './types';
+import { findMatchingProducts } from './festo-products';
 
 /**
  * Enrich raw hybrid search results with video and channel metadata
@@ -57,6 +58,7 @@ export async function enrichSearchResults(
       start_time: seg.start_time,
       end_time: seg.end_time,
       similarity: seg.rrf_score,
+      semantic_similarity: seg.semantic_similarity,
       video_id: String(seg.video_id),
       video_youtube_id: video?.youtube_id ?? '',
       video_title: video?.title ?? '',
@@ -73,9 +75,11 @@ export async function enrichSearchResults(
 /**
  * Apply relevance boosts for error codes and product keywords
  *
- * Increases similarity scores for segments containing:
+ * Uses the comprehensive Festo product database for more accurate matching:
  * - Error codes (1.5x boost) - highest priority for troubleshooting
- * - Product keywords (1.25x boost) - medium priority for product-specific content
+ * - Exact product type match in segment text (1.35x boost) - e.g. "DSBC" found in text
+ * - Category keyword match (1.25x boost) - e.g. "Zylinder" found in text
+ * - Product name/synonym match (1.15x boost) - e.g. "Normzylinder" found in text
  *
  * Re-sorts results by boosted similarity score.
  */
@@ -83,11 +87,14 @@ export function applyBoosts(
   results: SearchResultSegment[],
   parsed: ParsedQuery
 ): SearchResultSegment[] {
+  // Pre-compute matched products for this query
+  const matchedProducts = findMatchingProducts(parsed.originalQuery);
+
   const boosted = results.map((result) => {
     let boostFactor = 1.0;
     const textLower = result.text.toLowerCase();
 
-    // Check for error code matches (highest priority)
+    // Check for error code matches (highest priority: 1.5x)
     for (const errorCode of parsed.errorCodes) {
       if (textLower.includes(errorCode.toLowerCase())) {
         boostFactor = Math.max(boostFactor, 1.5);
@@ -95,11 +102,37 @@ export function applyBoosts(
       }
     }
 
-    // Check for product keyword matches (medium priority)
-    if (boostFactor === 1.0) {
+    // Check for exact product type designation in segment text (1.35x)
+    if (boostFactor < 1.5) {
+      for (const product of matchedProducts) {
+        if (textContainsProductType(textLower, product.type)) {
+          boostFactor = Math.max(boostFactor, 1.35);
+          break;
+        }
+      }
+    }
+
+    // Check for product keyword matches (general: 1.25x)
+    if (boostFactor < 1.35) {
       for (const keyword of parsed.productKeywords) {
-        if (textLower.includes(keyword.toLowerCase())) {
+        if (keyword.length >= 3 && textLower.includes(keyword.toLowerCase())) {
           boostFactor = Math.max(boostFactor, 1.25);
+          break;
+        }
+      }
+    }
+
+    // Check for product name/synonym matches in segment text (1.15x)
+    if (boostFactor < 1.25) {
+      for (const product of matchedProducts) {
+        const hasNameMatch =
+          textLower.includes(product.name_de.toLowerCase()) ||
+          textLower.includes(product.name_en.toLowerCase()) ||
+          product.synonyms.some(
+            (s) => s.length >= 4 && textLower.includes(s.toLowerCase())
+          );
+        if (hasNameMatch) {
+          boostFactor = Math.max(boostFactor, 1.15);
           break;
         }
       }
@@ -118,4 +151,22 @@ export function applyBoosts(
 
   // Re-sort by boosted similarity descending
   return boosted.sort((a, b) => b.similarity - a.similarity);
+}
+
+/**
+ * Check if text contains a product type designation as a word boundary match.
+ * This avoids false positives like "ADN" matching inside "HADN'T".
+ */
+function textContainsProductType(textLower: string, type: string): boolean {
+  const typeLower = type.toLowerCase();
+  // Use a regex word boundary check for short type names
+  if (type.length <= 3) {
+    const regex = new RegExp(`\\b${escapeRegex(typeLower)}\\b`, 'i');
+    return regex.test(textLower);
+  }
+  return textLower.includes(typeLower);
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

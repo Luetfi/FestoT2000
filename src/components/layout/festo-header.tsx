@@ -85,6 +85,7 @@ export function FestoHeader() {
             <SearchInput
               placeholder={dict.searchPlaceholder}
               buttonText={dict.searchButton}
+              minLengthHint={dict.searchMinLength}
               lang={lang}
               defaultValue={currentQuery}
               compact
@@ -180,6 +181,26 @@ export function FestoHeader() {
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   )}
+                </button>
+
+                {/* Logout */}
+                <div className="px-3 py-2 text-sm font-medium text-muted-foreground border-t border-border mt-1">
+                  {dict.logout}
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await fetch('/api/auth/logout', { method: 'POST' });
+                    window.location.href = '/login';
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-muted text-foreground flex items-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                  {dict.logout}
                 </button>
               </div>
             )}

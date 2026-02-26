@@ -43,9 +43,6 @@ export async function POST(request: NextRequest) {
 
     const videoIds = videos.map((v) => v.youtube_id);
 
-    // Clear search cache since results will change
-    await getSupabaseAdmin().from('search_cache').delete().neq('id', 0);
-
     // Process all videos directly
     const results = [];
     for (const videoId of videoIds) {

@@ -6,6 +6,7 @@ import { fetchVideoMetadata, fetchChannelMetadata, classifyChannel } from '@/lib
 import { fetchVideoTranscript } from '@/lib/youtube/transcripts';
 import { chunkTranscript } from '@/lib/ingestion/chunker';
 import { generateEmbeddings, validateEmbedding } from '@/lib/openai/embeddings';
+import { generateSummaries } from '@/lib/openai/summaries';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 /**
@@ -151,9 +152,12 @@ export async function ingestVideo(videoId: string): Promise<IngestionResult> {
       };
     }
 
-    // Generate embeddings for all chunks
+    // Generate embeddings and summaries for all chunks in parallel
     const texts = chunks.map((c) => c.text);
-    const embeddings = await generateEmbeddings(texts);
+    const [embeddings, summaries] = await Promise.all([
+      generateEmbeddings(texts),
+      generateSummaries(texts),
+    ]);
 
     // Validate embedding dimensions before storage
     for (const embedding of embeddings) {
@@ -171,6 +175,7 @@ export async function ingestVideo(videoId: string): Promise<IngestionResult> {
       // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
       transcript_id: transcript.id,
       text: chunk.text,
+      summary: summaries[index] || null,
       start_time: chunk.startTime,
       end_time: chunk.endTime,
       embedding: embeddings[index],

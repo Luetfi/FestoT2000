@@ -10,6 +10,7 @@ interface ResultCardProps {
   segment: SearchResultSegment;
   isSelected: boolean;
   onClick: () => void;
+  query: string;
   lang: string;
   labels: {
     official: string;
@@ -22,6 +23,7 @@ export function ResultCard({
   segment,
   isSelected,
   onClick,
+  query,
   lang,
   labels,
 }: ResultCardProps) {
@@ -64,7 +66,7 @@ export function ResultCard({
             </span>
           </div>
           <Link
-            href={`/video/${segment.video_id}?lang=${lang}&segment=${segment.id}`}
+            href={`/video/${segment.video_id}?lang=${lang}&segment=${segment.id}${query ? `&q=${encodeURIComponent(query)}` : ''}`}
             onClick={(e) => e.stopPropagation()}
             className="shrink-0 p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
           >

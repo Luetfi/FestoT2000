@@ -63,35 +63,10 @@ USING hnsw (embedding vector_cosine_ops);
 -- GIN index for full-text search fallback
 CREATE INDEX segments_text_tsv_idx ON segments USING gin(text_tsv);
 
--- Search cache table
--- Caches query results with 7-day TTL
-CREATE TABLE search_cache (
-  id BIGSERIAL PRIMARY KEY,
-  query_hash TEXT UNIQUE NOT NULL,
-  query_text TEXT NOT NULL,
-  language TEXT DEFAULT 'de',
-  filters JSONB DEFAULT '{}',
-  results JSONB NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days')
-);
-
--- Feedback table
--- Optional: stores helpful/not-helpful votes per segment
-CREATE TABLE feedback (
-  id BIGSERIAL PRIMARY KEY,
-  segment_id BIGINT REFERENCES segments(id) ON DELETE CASCADE,
-  query_text TEXT,
-  vote TEXT CHECK (vote IN ('helpful', 'not_helpful')) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
 -- Additional indexes for performance
 CREATE INDEX videos_youtube_id_idx ON videos(youtube_id);
 CREATE INDEX videos_channel_id_idx ON videos(channel_id);
 CREATE INDEX segments_video_id_idx ON segments(video_id);
-CREATE INDEX search_cache_expires_at_idx ON search_cache(expires_at);
-CREATE INDEX search_cache_query_hash_idx ON search_cache(query_hash);
 
 -- Updated at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at()
@@ -153,9 +128,6 @@ ALTER TABLE channels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE videos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transcripts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE segments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE search_cache ENABLE ROW LEVEL SECURITY;
-ALTER TABLE feedback ENABLE ROW LEVEL SECURITY;
-
 -- Allow anonymous SELECT on public tables
 -- Note: TO anon, authenticated ensures both anonymous and logged-in users can read
 
@@ -179,20 +151,9 @@ ON segments FOR SELECT
 TO anon, authenticated
 USING (true);
 
-CREATE POLICY "Allow public read on search_cache"
-ON search_cache FOR SELECT
-TO anon, authenticated
-USING (true);
-
--- Feedback: Allow anonymous users to INSERT votes (write-only for feedback)
-CREATE POLICY "Allow public insert on feedback"
-ON feedback FOR INSERT
-TO anon, authenticated
-WITH CHECK (true);
-
 -- No INSERT/UPDATE/DELETE policies for other tables
 -- Service role bypasses RLS, so no explicit policies needed for admin operations
--- Only service role (used in API routes) can modify channels, videos, transcripts, segments, search_cache
+-- Only service role (used in API routes) can modify channels, videos, transcripts, segments
 
 -- Grant necessary permissions to anon role for RPC functions
 GRANT EXECUTE ON FUNCTION search_segments TO anon, authenticated;

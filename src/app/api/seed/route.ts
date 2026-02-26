@@ -53,7 +53,6 @@ export async function GET(request: NextRequest) {
 
     await supabase.from('videos').delete().neq('id', 0);
     await supabase.from('channels').delete().neq('id', 0);
-    await supabase.from('search_cache').delete().neq('id', 0);
 
     log('Cleanup done');
 
@@ -216,7 +215,6 @@ export async function POST(request: NextRequest) {
       }
       await supabase.from('videos').delete().neq('id', 0);
       await supabase.from('channels').delete().neq('id', 0);
-      await supabase.from('search_cache').delete().neq('id', 0);
       log('Cleanup done');
     }
 
