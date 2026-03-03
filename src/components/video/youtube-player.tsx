@@ -6,6 +6,7 @@ import YouTube, { YouTubeProps } from 'react-youtube';
 interface YouTubePlayerProps {
   videoId: string;
   startTime: number;
+  autoPlay?: boolean;
   onReady?: () => void;
   className?: string;
 }
@@ -13,6 +14,7 @@ interface YouTubePlayerProps {
 export function YouTubePlayer({
   videoId,
   startTime,
+  autoPlay = false,
   onReady,
   className,
 }: YouTubePlayerProps) {
@@ -22,8 +24,8 @@ export function YouTubePlayer({
     height: '100%',
     width: '100%',
     playerVars: {
-      start: startTime,
-      autoplay: 0,
+      start: Math.floor(startTime),
+      autoplay: autoPlay ? 1 : 0,
       controls: 1,
       modestbranding: 1,
       rel: 0,
@@ -48,22 +50,6 @@ export function YouTubePlayer({
       }
     };
   }, []);
-
-  // Seek to new start time when it changes
-  useEffect(() => {
-    if (!playerRef.current) return;
-    try {
-      const state = playerRef.current.getPlayerState?.();
-      if (state === -1 || state === 5) {
-        // Video unstarted or cued — cueVideoById shows the actual frame
-        playerRef.current.cueVideoById({ videoId, startSeconds: startTime });
-      } else {
-        playerRef.current.seekTo(startTime, true);
-      }
-    } catch {
-      // Player might not be fully initialized or already destroyed
-    }
-  }, [startTime, videoId]);
 
   return (
     <div className={className}>

@@ -40,7 +40,7 @@ export function SearchInput({
     const params = new URLSearchParams();
     params.set('q', trimmed);
     params.set('lang', lang);
-    router.push(`/search?${params.toString()}`);
+    router.push(`/?${params.toString()}`);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

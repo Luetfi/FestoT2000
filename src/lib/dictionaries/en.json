@@ -58,5 +58,6 @@
   "loginButton": "Sign In",
   "loginError": "Invalid username or password",
   "loginLoading": "Signing in...",
-  "logout": "Sign Out"
+  "logout": "Sign Out",
+  "resetSearch": "Reset search"
 }

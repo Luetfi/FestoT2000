@@ -18,7 +18,7 @@ export function QuickFilters({ filters, lang }: QuickFiltersProps) {
   const router = useRouter();
 
   const handleFilterClick = (query: string) => {
-    router.push(`/search?q=${encodeURIComponent(query)}&lang=${lang}`);
+    router.push(`/?q=${encodeURIComponent(query)}&lang=${lang}`);
   };
 
   return (

@@ -82,6 +82,8 @@ export function VideoDetailClient({
   const [playerStartTime, setPlayerStartTime] = useState<number>(
     initialSegment?.start_time ?? 0
   );
+  const [playerKey, setPlayerKey] = useState(0);
+  const [autoPlay, setAutoPlay] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [explanations, setExplanations] = useState<Map<string, ExplanationState>>(
     () => new Map()
@@ -127,6 +129,8 @@ export function VideoDetailClient({
     (segment: SegmentData) => {
       setActiveSegmentId(segment.id);
       setPlayerStartTime(segment.start_time);
+      setAutoPlay(true);
+      setPlayerKey((k) => k + 1);
 
       // Fetch explanation if not already loaded
       const existing = explanations.get(segment.id);
@@ -169,8 +173,10 @@ export function VideoDetailClient({
         <div className="lg:col-span-3 space-y-3">
           <div className="aspect-video bg-black rounded-lg overflow-hidden">
             <YouTubePlayer
+              key={playerKey}
               videoId={video.videoYoutubeId}
               startTime={playerStartTime}
+              autoPlay={autoPlay}
               className="w-full h-full"
             />
           </div>

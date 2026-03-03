@@ -58,5 +58,6 @@
   "loginButton": "Anmelden",
   "loginError": "Benutzername oder Passwort falsch",
   "loginLoading": "Anmeldung...",
-  "logout": "Abmelden"
+  "logout": "Abmelden",
+  "resetSearch": "Suche zurücksetzen"
 }
