@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { searchVideos } from '@/lib/youtube/api';
 import { ingestVideo, IngestionResult } from '@/lib/ingestion/pipeline';
-import { SEED_QUERIES } from '@/lib/ingestion/seeds';
+import { SEED_QUERIES, COMMUNITY_VIDEO_IDS } from '@/lib/ingestion/seeds';
 
 const TARGET_VIDEO_COUNT = 50;
 const VIDEOS_PER_QUERY = 6;
@@ -113,6 +113,30 @@ export async function GET(request: NextRequest) {
         result.status === 'no_transcript' ? 'NO_TRANSCRIPT' : 'ERROR';
       log(`  ${statusLabel} - ${result.segmentCount} segments${result.error ? ` (${result.error})` : ''}`);
     }
+
+    // ── Step 3b: Ingest curated community videos (bypass target limit) ──
+    log(`Ingesting ${COMMUNITY_VIDEO_IDS.length} curated community videos...`);
+    let communitySuccess = 0;
+    for (let i = 0; i < COMMUNITY_VIDEO_IDS.length; i++) {
+      const communityId = COMMUNITY_VIDEO_IDS[i];
+      // Skip if already ingested in the discovery phase
+      if (results.some(r => r.videoId === communityId)) {
+        log(`  Skipping ${communityId} (already ingested)`);
+        continue;
+      }
+
+      log(`  Community ${i + 1}/${COMMUNITY_VIDEO_IDS.length}: ${communityId}...`);
+      const result = await ingestVideo(communityId);
+      results.push(result);
+
+      if (result.status === 'success') communitySuccess++;
+
+      const statusLabel =
+        result.status === 'success' ? 'OK' :
+        result.status === 'no_transcript' ? 'NO_TRANSCRIPT' : 'ERROR';
+      log(`    ${statusLabel} - ${result.segmentCount} segments${result.error ? ` (${result.error})` : ''}`);
+    }
+    log(`Community: ${communitySuccess}/${COMMUNITY_VIDEO_IDS.length} successful`);
 
     // ── Step 4: Summary ──
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);

@@ -25,6 +25,7 @@ function groupByVideo(segments: SearchResultSegment[]): GroupedVideoResult[] {
     const existing = map.get(seg.video_id);
     if (existing) {
       existing.matchCount++;
+      existing.allSegments.push(seg);
       if (seg.similarity > existing.bestSegment.similarity) {
         existing.bestSegment = seg;
       }
@@ -38,6 +39,7 @@ function groupByVideo(segments: SearchResultSegment[]): GroupedVideoResult[] {
         channel_name: seg.channel_name,
         channel_official_status: seg.channel_official_status,
         bestSegment: seg,
+        allSegments: [seg],
         matchCount: 1,
       });
     }

@@ -8,7 +8,8 @@
 import { google } from 'googleapis';
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
-import { fetchTranscript } from 'youtube-transcript-plus';
+// @ts-ignore - ESM direct import needed for youtube-transcript v1.3.0
+import { fetchTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
 
 // --- Config from env ---
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY!;
@@ -107,7 +108,7 @@ async function getTranscript(videoId: string): Promise<{ segments: TSegment[]; l
       const subs = await fetchTranscript(videoId, { lang });
       if (subs && subs.length > 0) {
         return {
-          segments: subs.map(s => ({ text: s.text, offset: Math.round(s.offset*1000), duration: Math.round(s.duration*1000) })),
+          segments: subs.map((s: any) => ({ text: s.text, offset: Math.round(s.offset), duration: Math.round(s.duration) })),
           language: lang,
         };
       }
@@ -122,10 +123,9 @@ async function getTranscript(videoId: string): Promise<{ segments: TSegment[]; l
 
 interface Chunk { text: string; startTime: number; endTime: number; }
 
-function chunkTranscript(segments: TSegment[], target = 800, overlapPct = 0.15): Chunk[] {
+function chunkTranscript(segments: TSegment[], target = 800): Chunk[] {
   if (!segments.length) return [];
   const chunks: Chunk[] = [];
-  const overlapSize = Math.floor(target * overlapPct);
   let curText = '', curStart = segments[0].offset, curEnd = segments[0].offset;
 
   for (const seg of segments) {
@@ -133,27 +133,59 @@ function chunkTranscript(segments: TSegment[], target = 800, overlapPct = 0.15):
     curEnd = seg.offset + seg.duration;
 
     if (curText.length >= target) {
-      chunks.push({ text: curText.trim(), startTime: curStart/1000, endTime: curEnd/1000 });
-      // overlap
-      if (curText.length > overlapSize) {
-        const raw = curText.slice(-overlapSize);
-        const sm = raw.match(/[.!?]\s+([A-ZÄÖÜ])/);
-        let overlap = raw;
-        if (sm?.index !== undefined && sm.index < raw.length * 0.7) {
-          overlap = raw.slice(sm.index + sm[0].length - 1);
-        }
-        curText = overlap;
-        curStart = curEnd - Math.floor((overlap.length / curText.length) * (curEnd - curStart) || 0);
-      } else {
-        curText = '';
-        curStart = curEnd;
-      }
+      chunks.push({ text: curText.trim(), startTime: curStart / 1000, endTime: curEnd / 1000 });
+      // Next chunk starts exactly where this one ended — no overlap, no gaps
+      curText = '';
+      curStart = curEnd;
     }
   }
+  // Final chunk for remaining text
   if (curText.trim()) {
-    chunks.push({ text: curText.trim(), startTime: curStart/1000, endTime: curEnd/1000 });
+    chunks.push({ text: curText.trim(), startTime: curStart / 1000, endTime: curEnd / 1000 });
   }
   return chunks;
+}
+
+// ============================================================
+// Summaries
+// ============================================================
+
+const SUMMARY_SYSTEM_PROMPT =
+  'Du fasst Transkript-Abschnitte in maximal 10 Wörtern auf Deutsch zusammen. Beschreibe WAS erklärt oder besprochen wird. Antworte IMMER auf Deutsch, auch wenn der Text auf Englisch ist. Antworte nur mit der Zusammenfassung, ohne Anführungszeichen.';
+const SUMMARY_CONCURRENCY = 10;
+
+async function generateSummary(text: string): Promise<string> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.3,
+      max_tokens: 50,
+      messages: [
+        { role: 'system', content: SUMMARY_SYSTEM_PROMPT },
+        { role: 'user', content: text },
+      ],
+    });
+    return response.choices[0]?.message?.content?.trim() ?? '';
+  } catch (e: any) {
+    if (e?.status === 429) {
+      await new Promise(r => setTimeout(r, 1000));
+      return generateSummary(text);
+    }
+    console.warn('Summary generation failed:', e?.message);
+    return '';
+  }
+}
+
+async function generateSummaries(texts: string[]): Promise<string[]> {
+  const results: string[] = new Array(texts.length).fill('');
+  for (let i = 0; i < texts.length; i += SUMMARY_CONCURRENCY) {
+    const batch = texts.slice(i, i + SUMMARY_CONCURRENCY);
+    const batchResults = await Promise.all(batch.map(t => generateSummary(t)));
+    for (let j = 0; j < batchResults.length; j++) {
+      results[i + j] = batchResults[j];
+    }
+  }
+  return results;
 }
 
 // ============================================================
@@ -230,7 +262,8 @@ async function ingestVideo(videoId: string): Promise<Result> {
     const transcript = await getTranscript(videoId);
     if (!transcript) return { videoId, status: 'no_transcript', segments: 0 };
 
-    // Delete old transcripts for re-ingestion
+    // Delete old segments + transcripts for clean re-ingestion
+    await supabase.from('segments').delete().eq('video_id', videoDbId);
     await supabase.from('transcripts').delete().eq('video_id', videoDbId);
 
     const fullText = transcript.segments.map(s => s.text).join(' ');
@@ -244,16 +277,21 @@ async function ingestVideo(videoId: string): Promise<Result> {
 
     await supabase.from('videos').update({ has_transcript: true } as any).eq('id', videoDbId);
 
-    // Chunk + embed
+    // Chunk + embed + summarize
     const chunks = chunkTranscript(transcript.segments);
     if (!chunks.length) return { videoId, status: 'no_transcript', segments: 0 };
 
-    const embeddings = await embed(chunks.map(c => c.text));
+    const texts = chunks.map(c => c.text);
+    const [embeddings, summaries] = await Promise.all([
+      embed(texts),
+      generateSummaries(texts),
+    ]);
 
     const segRows = chunks.map((c, i) => ({
       video_id: videoDbId,
       transcript_id: (tRow as any).id,
       text: c.text,
+      summary: summaries[i] || null,
       start_time: c.startTime,
       end_time: c.endTime,
       embedding: embeddings[i],

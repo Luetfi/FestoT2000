@@ -9,6 +9,7 @@ export interface SearchResultSegment {
   // Segment data
   id: string;
   text: string;
+  summary: string | null;
   start_time: number;
   end_time: number;
   similarity: number;

@@ -4,7 +4,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { ingestVideo } from '@/lib/ingestion/pipeline';
-import { SEED_QUERIES } from '@/lib/ingestion/seeds';
+import { SEED_QUERIES, COMMUNITY_VIDEO_IDS } from '@/lib/ingestion/seeds';
 
 export const maxDuration = 300; // 5 minutes for batch processing
 
@@ -75,6 +75,9 @@ export async function GET(request: NextRequest) {
         errors.push(errorMessage);
       }
     }
+
+    // Add curated community videos for ingestion
+    videoIds.push(...COMMUNITY_VIDEO_IDS);
 
     // Deduplicate video IDs
     const uniqueVideoIds = Array.from(new Set(videoIds));

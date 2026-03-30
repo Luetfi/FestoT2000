@@ -1,11 +1,12 @@
 // YouTube transcript fetching - server-only
 // Fetch transcripts with timestamps, graceful error handling
 //
-// Uses youtube-transcript-plus for reliable server-side transcript fetching.
+// Uses youtube-transcript for reliable server-side transcript fetching.
 // Fallback chain: German captions → English captions → unavailable
 import 'server-only';
 
-import { fetchTranscript } from 'youtube-transcript-plus';
+// @ts-expect-error - youtube-transcript v1.3.0 has broken package.json exports
+import { fetchTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
 
 /**
  * Transcript segment with timestamp metadata
@@ -65,10 +66,10 @@ async function tryFetchTranscript(
 
     if (!subtitles || subtitles.length === 0) return null;
 
-    const segments: TranscriptSegment[] = subtitles.map((sub) => ({
+    const segments: TranscriptSegment[] = subtitles.map((sub: any) => ({
       text: sub.text,
-      offset: Math.round(sub.offset * 1000),
-      duration: Math.round(sub.duration * 1000),
+      offset: Math.round(sub.offset),
+      duration: Math.round(sub.duration),
     }));
 
     return {

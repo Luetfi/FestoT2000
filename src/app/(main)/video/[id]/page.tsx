@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { VideoDetailClient } from '@/components/video/video-detail-client';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { getDictionary, isValidLocale, defaultLocale } from '@/lib/dictionaries/get-dictionary';
+import { generateSummaries } from '@/lib/openai/summaries';
 import type { OfficialStatus } from '@/types/search';
 
 interface VideoPageProps {
@@ -58,13 +59,33 @@ export default async function VideoPage({ params, searchParams }: VideoPageProps
     .eq('video_id', videoId)
     .order('start_time', { ascending: true });
 
-  const segments = (segmentRows || []).map((row) => ({
+  let segments = (segmentRows || []).map((row: any) => ({
     id: String(row.id),
     text: row.text,
     summary: row.summary ?? null,
     start_time: row.start_time,
     end_time: row.end_time,
   }));
+
+  // Generate missing summaries on-the-fly and cache them
+  const missingSummarySegs = segments.filter((s) => !s.summary);
+  if (missingSummarySegs.length > 0) {
+    const newSummaries = await generateSummaries(missingSummarySegs.map((s) => s.text));
+    const summaryMap = new Map<string, string>();
+    for (let i = 0; i < missingSummarySegs.length; i++) {
+      const summary = newSummaries[i];
+      if (summary) {
+        summaryMap.set(missingSummarySegs[i].id, summary);
+        // Cache in DB (fire-and-forget)
+        // @ts-expect-error supabase generic inference
+        supabase.from('segments').update({ summary }).eq('id', parseInt(missingSummarySegs[i].id, 10));
+      }
+    }
+    segments = segments.map((s) => ({
+      ...s,
+      summary: s.summary || summaryMap.get(s.id) || null,
+    }));
+  }
 
   return (
     <div className="min-h-screen bg-background">

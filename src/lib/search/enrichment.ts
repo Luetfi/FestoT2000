@@ -4,6 +4,7 @@ import { HybridSearchResult } from '@/lib/supabase/types';
 import { SearchResultSegment, OfficialStatus } from '@/types/search';
 import { ParsedQuery } from './types';
 import { findMatchingProducts } from './festo-products';
+import { generateSummaries } from '@/lib/openai/summaries';
 
 /**
  * Enrich raw hybrid search results with video and channel metadata
@@ -18,8 +19,38 @@ export async function enrichSearchResults(
     return [];
   }
 
-  // Extract unique video IDs
+  // Extract unique video IDs and segment IDs
   const videoIds = [...new Set(segments.map((seg) => seg.video_id))];
+  const segmentIds = segments.map((seg) => seg.id);
+
+  // Fetch summaries for matched segments
+  const { data: segmentSummaries } = await getSupabaseAdmin()
+    .from('segments')
+    .select('id, summary')
+    .in('id', segmentIds);
+
+  const summaryMap = new Map(
+    (segmentSummaries || []).map((s: { id: number; summary: string | null }) => [s.id, s.summary])
+  );
+
+  // Find segments missing summaries and generate them
+  const missingSummarySegs = segments.filter((seg) => !summaryMap.get(seg.id));
+  if (missingSummarySegs.length > 0) {
+    const newSummaries = await generateSummaries(missingSummarySegs.map((seg) => seg.text));
+    // Cache generated summaries in DB (fire-and-forget)
+    for (let i = 0; i < missingSummarySegs.length; i++) {
+      const summary = newSummaries[i];
+      if (summary) {
+        summaryMap.set(missingSummarySegs[i].id, summary);
+        getSupabaseAdmin()
+          .from('segments')
+          // @ts-expect-error - Supabase types not fully inferring
+          .update({ summary })
+          .eq('id', missingSummarySegs[i].id)
+          .then();
+      }
+    }
+  }
 
   // Fetch videos with channels data in single query
   const { data: videos } = await getSupabaseAdmin()
@@ -55,6 +86,7 @@ export async function enrichSearchResults(
     return {
       id: String(seg.id),
       text: seg.text,
+      summary: summaryMap.get(seg.id) ?? null,
       start_time: seg.start_time,
       end_time: seg.end_time,
       similarity: seg.rrf_score,
