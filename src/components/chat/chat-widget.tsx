@@ -1,14 +1,38 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Trash2 } from 'lucide-react';
+import { X, History, SquarePen, ArrowLeft } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { ChatPanel } from './chat-panel';
+import { ChatHistory } from './chat-history';
 import { useChat } from '@/hooks/use-chat';
 
 export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const { messages, isLoading, sendMessage, clearMessages, stopGeneration } = useChat();
+  const [view, setView] = useState<'chat' | 'history'>('chat');
+  const {
+    messages,
+    isLoading,
+    conversationId,
+    title,
+    conversations,
+    sendMessage,
+    stopGeneration,
+    newConversation,
+    selectConversation,
+    deleteConversation,
+    clearAllConversations,
+  } = useChat();
+
+  const handleNewConversation = () => {
+    newConversation();
+    setView('chat');
+  };
+
+  const handleSelectConversation = (id: string) => {
+    selectConversation(id);
+    setView('chat');
+  };
 
   return (
     <>
@@ -16,15 +40,28 @@ export function ChatWidget() {
       {isOpen && (
         <div className="fixed bottom-20 right-6 z-50 w-[420px] h-[600px] max-h-[80vh] max-w-[calc(100vw-3rem)] rounded-2xl border bg-background shadow-2xl flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-primary text-primary-foreground shrink-0">
-            <span className="font-semibold text-sm">Festo Assistent</span>
-            <div className="flex items-center gap-1">
+          <div className="flex items-center justify-between gap-2 px-4 py-3 bg-primary text-primary-foreground shrink-0">
+            <span className="font-semibold text-sm truncate">
+              {view === 'history' ? 'Chatverlauf' : title || 'Festo Assistent'}
+            </span>
+            <div className="flex items-center gap-1 shrink-0">
               <button
-                onClick={clearMessages}
+                onClick={() => setView((prev) => (prev === 'history' ? 'chat' : 'history'))}
                 className="p-1.5 rounded-md hover:bg-white/20 transition-colors"
-                aria-label="Chat leeren"
+                aria-label={view === 'history' ? 'Zurück zum Chat' : 'Chatverlauf öffnen'}
               >
-                <Trash2 className="size-4" />
+                {view === 'history' ? (
+                  <ArrowLeft className="size-4" />
+                ) : (
+                  <History className="size-4" />
+                )}
+              </button>
+              <button
+                onClick={handleNewConversation}
+                className="p-1.5 rounded-md hover:bg-white/20 transition-colors"
+                aria-label="Neuer Chat"
+              >
+                <SquarePen className="size-4" />
               </button>
               <button
                 onClick={() => setIsOpen(false)}
@@ -36,13 +73,23 @@ export function ChatWidget() {
             </div>
           </div>
 
-          {/* Chat panel */}
-          <ChatPanel
-            messages={messages}
-            isLoading={isLoading}
-            onSendMessage={sendMessage}
-            onStopGeneration={stopGeneration}
-          />
+          {/* Content */}
+          {view === 'history' ? (
+            <ChatHistory
+              conversations={conversations}
+              activeConversationId={conversationId}
+              onSelectConversation={handleSelectConversation}
+              onDeleteConversation={deleteConversation}
+              onClearAll={clearAllConversations}
+            />
+          ) : (
+            <ChatPanel
+              messages={messages}
+              isLoading={isLoading}
+              onSendMessage={sendMessage}
+              onStopGeneration={stopGeneration}
+            />
+          )}
         </div>
       )}
 

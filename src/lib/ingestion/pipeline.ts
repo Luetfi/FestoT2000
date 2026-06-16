@@ -7,6 +7,7 @@ import { fetchVideoTranscript } from '@/lib/youtube/transcripts';
 import { chunkTranscript } from '@/lib/ingestion/chunker';
 import { generateEmbeddings, validateEmbedding } from '@/lib/openai/embeddings';
 import { generateSummaries } from '@/lib/openai/summaries';
+import { gateVideo } from '@/lib/ingestion/relevance-gate';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 /**
@@ -15,11 +16,23 @@ import { getSupabaseAdmin } from '@/lib/supabase/server';
  */
 export interface IngestionResult {
   videoId: string;
-  status: 'success' | 'no_transcript' | 'error';
+  status: 'success' | 'no_transcript' | 'error' | 'rejected_irrelevant';
   segmentCount: number;
   error?: string;
   channelId?: number;
   videoDbId?: number;
+}
+
+/**
+ * Options controlling ingestion behaviour.
+ * Defaults preserve the original behaviour (no gate, immediately approved) so
+ * existing callers (/api/ingest, channel ingestion) are unaffected.
+ */
+export interface IngestOptions {
+  /** Run the relevance gate before embedding (used for community ingestion). */
+  gate?: boolean;
+  /** review_status to assign on a successful ingest. Default 'approved'. */
+  reviewStatus?: 'approved' | 'pending';
 }
 
 /**
@@ -34,7 +47,11 @@ export interface IngestionResult {
  * @param videoId - YouTube video ID
  * @returns IngestionResult with status and counts
  */
-export async function ingestVideo(videoId: string): Promise<IngestionResult> {
+export async function ingestVideo(
+  videoId: string,
+  options: IngestOptions = {}
+): Promise<IngestionResult> {
+  const reviewStatus = options.reviewStatus ?? 'approved';
   try {
     // Fetch video metadata from YouTube Data API
     const metadata = await fetchVideoMetadata(videoId);
@@ -86,6 +103,7 @@ export async function ingestVideo(videoId: string): Promise<IngestionResult> {
           duration_seconds: metadata.durationSeconds,
           published_at: metadata.publishedAt,
           has_transcript: false,
+          review_status: reviewStatus,
         },
         { onConflict: 'youtube_id' }
       )
@@ -98,7 +116,14 @@ export async function ingestVideo(videoId: string): Promise<IngestionResult> {
     const transcriptResult = await fetchVideoTranscript(videoId);
 
     if (!transcriptResult.available) {
-      // Transcript unavailable - return early with status
+      // Transcript unavailable → not searchable. Mark not-approved so it isn't
+      // counted as a live video or listed for review.
+      await getSupabaseAdmin()
+        .from('videos')
+        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
+        .update({ review_status: 'rejected', relevance_reason: 'Kein DE/EN-Transkript verfügbar' })
+        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
+        .eq('id', video.id);
       return {
         videoId,
         status: 'no_transcript',
@@ -109,12 +134,54 @@ export async function ingestVideo(videoId: string): Promise<IngestionResult> {
       };
     }
 
+    const fullText = transcriptResult.segments.map((s) => s.text).join(' ');
+
+    // Optional relevance gate (community ingestion): reject clearly irrelevant
+    // videos BEFORE spending embedding credits. The video row is kept and marked
+    // 'rejected' (with score/reason) so discovery won't re-process it.
+    let gateScore: number | null = null;
+    let gateReason: string | null = null;
+    let gateContentType: string | null = null;
+    if (options.gate) {
+      const gate = await gateVideo({
+        title: metadata.title,
+        description: metadata.description,
+        transcript: fullText,
+      });
+      gateScore = gate.score;
+      gateReason = gate.reason;
+      gateContentType = gate.contentType;
+
+      if (!gate.relevant) {
+        await getSupabaseAdmin()
+          .from('videos')
+          // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
+          .update({
+            review_status: 'rejected',
+            relevance_score: gate.score,
+            relevance_reason: gate.reason,
+            content_type: gate.contentType,
+            has_transcript: false,
+          })
+          // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
+          .eq('id', video.id);
+
+        return {
+          videoId,
+          status: 'rejected_irrelevant',
+          segmentCount: 0,
+          channelId: channelDbId,
+          // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
+          videoDbId: video.id,
+        };
+      }
+    }
+
     // Delete old transcripts (cascades to segments) for idempotent re-ingestion
     // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
     await getSupabaseAdmin().from('transcripts').delete().eq('video_id', video.id);
 
     // Store transcript in database
-    const fullText = transcriptResult.segments.map((s) => s.text).join(' ');
     const { data: transcript, error: transcriptError } = await getSupabaseAdmin()
       .from('transcripts')
       // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
@@ -141,7 +208,13 @@ export async function ingestVideo(videoId: string): Promise<IngestionResult> {
     // Chunk transcript into 30-60 second segments with overlap
     const chunks = chunkTranscript(transcriptResult.segments);
     if (chunks.length === 0) {
-      // Empty transcript - treat as unavailable
+      // Empty transcript - treat as unavailable (and not approved/searchable).
+      await getSupabaseAdmin()
+        .from('videos')
+        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
+        .update({ review_status: 'rejected', relevance_reason: 'Leeres Transkript' })
+        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
+        .eq('id', video.id);
       return {
         videoId,
         status: 'no_transcript',
@@ -187,6 +260,21 @@ export async function ingestVideo(videoId: string): Promise<IngestionResult> {
       .insert(segmentRecords);
 
     if (segmentError) throw segmentError;
+
+    // Persist the gate verdict on the (now ingested) video for the reviewer.
+    // review_status keeps the value set at upsert (e.g. 'pending').
+    if (options.gate) {
+      await getSupabaseAdmin()
+        .from('videos')
+        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
+        .update({
+          relevance_score: gateScore,
+          relevance_reason: gateReason,
+          content_type: gateContentType,
+        })
+        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
+        .eq('id', video.id);
+    }
 
     // Success - return result with counts
     return {

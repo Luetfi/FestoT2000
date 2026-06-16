@@ -2,14 +2,14 @@ import 'server-only';
 import { NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { generateEmbedding } from '@/lib/openai/embeddings';
-import { parseSearchQuery } from '@/lib/search/query-parser';
-import { enrichSearchResults, applyBoosts } from '@/lib/search/enrichment';
+import { enrichSearchResults } from '@/lib/search/enrichment';
 import { filterByRelevance } from '@/lib/search/relevance-filter';
+import { condenseQuery } from '@/lib/search/query-condenser';
 import { buildSystemPrompt, createChatStream } from '@/lib/openai/chat';
 import type { ChatRequest } from '@/types/chat';
 
 const MAX_HISTORY = 10;
-const MAX_CONTEXT_SEGMENTS = 5;
+const MAX_CONTEXT_SEGMENTS = 8;
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,17 +26,15 @@ export async function POST(request: NextRequest) {
     // Trim history to last N messages
     const trimmedHistory = history.slice(-MAX_HISTORY);
 
-    // 1. Generate embedding for user message
-    const embedding = await generateEmbedding(message);
+    // 1. Condense follow-up messages into a standalone search query, then embed
+    const searchQuery = await condenseQuery(message, trimmedHistory);
+    const embedding = await generateEmbedding(searchQuery);
 
-    // 2. Parse query for boosting
-    const parsed = parseSearchQuery(message);
-
-    // 3. Hybrid search
+    // 2. Hybrid search
     const supabase = getSupabaseAdmin();
     // @ts-expect-error - RPC function types may not be fully inferred
     const { data: rawResults, error } = await supabase.rpc('hybrid_search_segments', {
-      query_text: parsed.enhancedQuery,
+      query_text: searchQuery,
       query_embedding: embedding,
       match_count: 30,
       full_text_weight: 1.0,
@@ -52,19 +50,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 4. Enrich, boost, filter
+    // 3. Enrich and filter
     const enriched = await enrichSearchResults(rawResults || []);
-    const boosted = applyBoosts(enriched, parsed);
-    const filtered = filterByRelevance(boosted);
+    const filtered = filterByRelevance(enriched);
     const topSegments = filtered.slice(0, MAX_CONTEXT_SEGMENTS);
 
-    // 5. Build system prompt with context
+    // 4. Build system prompt with context
     const systemPrompt = buildSystemPrompt(topSegments);
 
-    // 6. Create streaming completion
+    // 5. Create streaming completion
     const stream = await createChatStream(systemPrompt, trimmedHistory, message);
 
-    // 7. Return SSE stream
+    // 6. Return SSE stream
     const encoder = new TextEncoder();
     const readableStream = new ReadableStream({
       async start(controller) {

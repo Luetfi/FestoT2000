@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
-import type { SearchResultSegment } from '@/types/search';
-import { formatTimeRange, formatDuration } from '@/types/search';
+import type { SearchResultSegment, RelevanceLevel } from '@/types/search';
+import { formatTimeRange, formatDuration, getRelevanceLevel } from '@/types/search';
+import { cn } from '@/lib/utils';
 
 export interface GroupedVideoResult {
   video_id: string;
@@ -26,14 +27,39 @@ interface VideoResultCardProps {
     community: string;
     segmentDuration: string;
     matchingSegments: string;
+    relevanceHigh: string;
+    relevanceMedium: string;
+    relevanceLow: string;
+    relevanceSuffix: string;
   };
 }
+
+const RELEVANCE_DOT: Record<RelevanceLevel, string> = {
+  high: 'bg-green-500',
+  medium: 'bg-amber-500',
+  low: 'bg-muted-foreground',
+};
+
+const RELEVANCE_TEXT: Record<RelevanceLevel, string> = {
+  high: 'text-green-600 dark:text-green-500',
+  medium: 'text-amber-600 dark:text-amber-500',
+  low: 'text-muted-foreground',
+};
 
 export function VideoResultCard({ video, query, lang, labels }: VideoResultCardProps) {
   const isOfficial = video.channel_official_status === 'official';
   const timeRange = formatTimeRange(video.bestSegment.start_time, video.bestSegment.end_time);
   const href = `/video/${video.video_id}?lang=${lang}&segment=${video.bestSegment.id}${query ? `&q=${encodeURIComponent(query)}` : ''}`;
   const summary = video.bestSegment.summary;
+
+  const confidence = video.bestSegment.confidence ?? video.bestSegment.semantic_similarity * 100;
+  const { level, percent } = getRelevanceLevel(confidence);
+  const relevanceLabel =
+    level === 'high'
+      ? labels.relevanceHigh
+      : level === 'medium'
+        ? labels.relevanceMedium
+        : labels.relevanceLow;
 
   return (
     <div className="rounded-lg border bg-card transition-colors hover:bg-accent/50">
@@ -83,11 +109,13 @@ export function VideoResultCard({ video, query, lang, labels }: VideoResultCardP
               <span>
                 <span className="font-medium">{labels.segmentDuration}:</span> {timeRange}
               </span>
-              {video.matchCount > 1 && (
-                <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 font-medium">
-                  {video.matchCount} {labels.matchingSegments}
-                </span>
-              )}
+              <span
+                className={cn('flex items-center gap-1 font-medium', RELEVANCE_TEXT[level])}
+                title={relevanceLabel}
+              >
+                <span className={cn('size-2 rounded-full', RELEVANCE_DOT[level])} />
+                {percent}% {labels.relevanceSuffix}
+              </span>
             </div>
           </div>
         </div>

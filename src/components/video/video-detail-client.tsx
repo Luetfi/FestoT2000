@@ -11,6 +11,7 @@ import { ChapterList } from './chapter-list';
 import { AnswerPanel } from './answer-panel';
 import { formatDuration } from '@/types/search';
 import type { OfficialStatus } from '@/types/search';
+import type { FeedbackWidgetLabels } from '@/components/feedback/feedback-widget';
 
 interface VideoData {
   videoYoutubeId: string;
@@ -37,10 +38,12 @@ interface ExplanationState {
 
 interface VideoDetailClientProps {
   video: VideoData;
+  videoId: number;
   segments: SegmentData[];
   initialSegmentId: string | null;
   searchQuery: string | null;
   lang: string;
+  feedbackLabels: FeedbackWidgetLabels;
   labels: {
     back: string;
     official: string;
@@ -64,10 +67,12 @@ interface VideoDetailClientProps {
 
 export function VideoDetailClient({
   video,
+  videoId,
   segments,
   initialSegmentId,
   searchQuery,
   lang,
+  feedbackLabels,
   labels,
 }: VideoDetailClientProps) {
   const router = useRouter();
@@ -213,6 +218,9 @@ export function VideoDetailClient({
           <AnswerPanel
             segment={activeSegment}
             explanation={activeSegmentId ? explanations.get(activeSegmentId) : undefined}
+            videoId={videoId}
+            lang={lang}
+            feedbackLabels={feedbackLabels}
             labels={{
               yourAnswer: labels.yourAnswer,
               generatingExplanation: labels.generatingExplanation,

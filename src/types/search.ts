@@ -14,6 +14,13 @@ export interface SearchResultSegment {
   end_time: number;
   similarity: number;
   semantic_similarity: number;
+  // True when the segment surfaced via full-text (segment text or video title)
+  // rather than only semantic similarity. Used to keep exact title/keyword
+  // matches that have semantic_similarity 0 from being pre-filtered out.
+  full_text_match: boolean;
+  // 0-100 confidence (LLM judge) that this segment answers the query.
+  // Set by the search API; optional because segments built elsewhere don't have it.
+  confidence?: number;
 
   // Video data (denormalized)
   video_id: string;
@@ -47,10 +54,22 @@ export interface VideoResult {
   }>;
 }
 
+// A suggested, more precise search term shown when a query yields weak results.
+export interface QuerySuggestion {
+  term: string;
+  // Optional short rationale, shown as a tooltip on the suggestion chip.
+  reason?: string;
+}
+
 export interface SearchResponse {
   query: string;
   results: SearchResultSegment[];
   total: number;
+  // Better search terms suggested when the result set is weak; empty otherwise.
+  suggestions: QuerySuggestion[];
+  // Id of the query_log row this search created; lets the client attach an
+  // explicit "did this solve your problem?" answer. Absent if logging failed.
+  queryLogId?: number;
 }
 
 export interface QuickFilter {
@@ -70,4 +89,18 @@ export function formatDuration(seconds: number): string {
 // Helper to format segment time range
 export function formatTimeRange(startTime: number, endTime: number): string {
   return `${formatDuration(startTime)} - ${formatDuration(endTime)}`;
+}
+
+export type RelevanceLevel = 'high' | 'medium' | 'low';
+
+// Map an LLM confidence score (0-100, "how sure this segment answers the query")
+// to a relevance level + rounded percentage for display.
+export function getRelevanceLevel(confidence: number): {
+  level: RelevanceLevel;
+  percent: number;
+} {
+  const percent = Math.round(confidence);
+  if (percent >= 85) return { level: 'high', percent };
+  if (percent >= 60) return { level: 'medium', percent };
+  return { level: 'low', percent };
 }

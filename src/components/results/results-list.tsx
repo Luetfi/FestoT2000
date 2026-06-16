@@ -10,6 +10,10 @@ interface ResultsListProps {
     segmentDuration: string;
     matchingSegments: string;
     noResults: string;
+    relevanceHigh: string;
+    relevanceMedium: string;
+    relevanceLow: string;
+    relevanceSuffix: string;
   };
 }
 
@@ -35,6 +39,10 @@ export function ResultsList({ videos, query, lang, labels }: ResultsListProps) {
             community: labels.community,
             segmentDuration: labels.segmentDuration,
             matchingSegments: labels.matchingSegments,
+            relevanceHigh: labels.relevanceHigh,
+            relevanceMedium: labels.relevanceMedium,
+            relevanceLow: labels.relevanceLow,
+            relevanceSuffix: labels.relevanceSuffix,
           }}
         />
       ))}

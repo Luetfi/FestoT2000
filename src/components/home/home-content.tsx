@@ -3,9 +3,11 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { SearchInput } from '@/components/search/search-input';
+import { QuerySuggestions } from '@/components/search/query-suggestions';
+import { QueryOutcome } from '@/components/feedback/query-outcome';
 import { VideoCard, type VideoCardData } from '@/components/home/video-card';
 import { ResultsList } from '@/components/results/results-list';
-import type { SearchResultSegment } from '@/types/search';
+import type { SearchResultSegment, QuerySuggestion } from '@/types/search';
 import type { GroupedVideoResult } from '@/components/results/video-result-card';
 
 const dictionaries = {
@@ -19,6 +21,11 @@ function isValidLocale(v: string | null): v is Locale {
   return v === 'de' || v === 'en';
 }
 
+// Confidence (0-100) that a segment answers the query; falls back to cosine similarity.
+function segmentScore(seg: SearchResultSegment): number {
+  return seg.confidence ?? seg.semantic_similarity * 100;
+}
+
 function groupByVideo(segments: SearchResultSegment[]): GroupedVideoResult[] {
   const map = new Map<string, GroupedVideoResult>();
   for (const seg of segments) {
@@ -26,7 +33,9 @@ function groupByVideo(segments: SearchResultSegment[]): GroupedVideoResult[] {
     if (existing) {
       existing.matchCount++;
       existing.allSegments.push(seg);
-      if (seg.similarity > existing.bestSegment.similarity) {
+      // The displayed segment is the best-matching one, so its time range and
+      // confidence reflect the most relevant moment of this video.
+      if (segmentScore(seg) > segmentScore(existing.bestSegment)) {
         existing.bestSegment = seg;
       }
     } else {
@@ -60,6 +69,8 @@ export function HomeContent() {
 
   // Search state
   const [results, setResults] = useState<SearchResultSegment[]>([]);
+  const [suggestions, setSuggestions] = useState<QuerySuggestion[]>([]);
+  const [queryLogId, setQueryLogId] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState<'all' | 'official' | 'community'>('all');
@@ -68,12 +79,18 @@ export function HomeContent() {
     dictionaries[lang]().then(setDict);
   }, [lang]);
 
-  // Fetch recent videos (only when no search query)
+  // Fetch recent videos (only when no search query). The start page shows the
+  // latest official Festo service-channel videos, not community uploads.
   useEffect(() => {
     if (query) return;
     fetch('/api/videos')
       .then((r) => r.json())
-      .then((data) => setVideos((data.videos || []).slice(0, MAX_RECENT)))
+      .then((data) => {
+        const official = ((data.videos || []) as VideoCardData[]).filter(
+          (v) => v.channel_official_status === 'official'
+        );
+        setVideos(official.slice(0, MAX_RECENT));
+      })
       .catch(() => setVideos([]));
   }, [query]);
 
@@ -86,6 +103,8 @@ export function HomeContent() {
   useEffect(() => {
     if (!query) {
       setResults([]);
+      setSuggestions([]);
+      setQueryLogId(undefined);
       setLoading(false);
       setError(null);
       return;
@@ -96,7 +115,7 @@ export function HomeContent() {
       setError(null);
       try {
         const response = await fetch(
-          `/api/search?q=${encodeURIComponent(query)}`
+          `/api/search?q=${encodeURIComponent(query)}&lang=${lang}`
         );
         const data = await response.json();
         if (!response.ok || !data.results) {
@@ -104,21 +123,26 @@ export function HomeContent() {
           console.error('Search API error:', errorMessage);
           setError(errorMessage);
           setResults([]);
+          setSuggestions([]);
           return;
         }
         setResults(data.results as SearchResultSegment[]);
+        setSuggestions((data.suggestions ?? []) as QuerySuggestion[]);
+        setQueryLogId(typeof data.queryLogId === 'number' ? data.queryLogId : undefined);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Network error';
         console.error('Search failed:', errorMessage);
         setError(errorMessage);
         setResults([]);
+        setSuggestions([]);
+        setQueryLogId(undefined);
       } finally {
         setLoading(false);
       }
     };
 
     fetchResults();
-  }, [query]);
+  }, [query, lang]);
 
   // Group segments by video
   const groupedVideos = useMemo(() => groupByVideo(results), [results]);
@@ -158,6 +182,23 @@ export function HomeContent() {
             key={query}
           />
         </div>
+
+        {/* Search-level outcome — sits right under the search field so it is
+            immediately visible. Captures coverage gaps, incl. zero-result
+            queries. Self-guards: renders nothing until a search has produced a
+            queryLogId, so the start page stays unaffected. */}
+        {isSearching && !loading && !error && (
+          <QueryOutcome
+            queryLogId={queryLogId}
+            labels={{
+              question: dict.queryOutcomeQuestion,
+              yes: dict.queryOutcomeYes,
+              no: dict.queryOutcomeNo,
+              thanks: dict.feedbackThanks,
+            }}
+            className="pt-2"
+          />
+        )}
       </div>
 
       {isSearching ? (
@@ -180,6 +221,12 @@ export function HomeContent() {
             </div>
           ) : (
             <>
+              <QuerySuggestions
+                suggestions={suggestions}
+                lang={lang}
+                label={dict.suggestionsLabel}
+              />
+
               {/* Source filter + reset button */}
               <div className="flex items-center justify-center gap-4 mb-4">
                 {groupedVideos.length > 0 && (
@@ -225,6 +272,10 @@ export function HomeContent() {
                   segmentDuration: dict.segmentDuration,
                   matchingSegments: dict.matchingSegments,
                   noResults: dict.noResults,
+                  relevanceHigh: dict.relevanceHigh,
+                  relevanceMedium: dict.relevanceMedium,
+                  relevanceLow: dict.relevanceLow,
+                  relevanceSuffix: dict.relevanceSuffix,
                 }}
               />
             </>

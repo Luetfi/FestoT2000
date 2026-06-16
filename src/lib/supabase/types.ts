@@ -3,6 +3,8 @@
 
 export type OfficialStatus = 'official' | 'community' | 'unknown';
 export type SourceType = 'manual' | 'auto' | 'unknown';
+export type ReviewStatus = 'approved' | 'pending' | 'rejected';
+export type FeedbackType = 'search_result' | 'video';
 
 export interface Channel {
   id: number;
@@ -25,6 +27,10 @@ export interface Video {
   duration_seconds: number | null;
   published_at: string | null;
   has_transcript: boolean;
+  review_status: ReviewStatus;
+  relevance_score: number | null;
+  relevance_reason: string | null;
+  content_type: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -51,6 +57,50 @@ export interface Segment {
   created_at: string;
 }
 
+export interface VideoFeedback {
+  id: number;
+  video_id: number;
+  segment_id: number | null;
+  feedback_type: FeedbackType;
+  is_positive: boolean;
+  query: string;
+  reason: string | null;
+  lang: string | null;
+  session_id: string;
+  created_at: string;
+}
+
+export interface QueryLog {
+  id: number;
+  query: string;
+  normalized_query: string;
+  lang: string | null;
+  result_count: number;
+  top_confidence: number | null;
+  was_solved: boolean | null;
+  session_id: string;
+  created_at: string;
+}
+
+// Read-only aggregation views (see migration 007).
+export interface VideoFeedbackStats {
+  video_id: number;
+  positive_count: number;
+  negative_count: number;
+  last_feedback_at: string | null;
+}
+
+export interface QueryGap {
+  normalized_query: string;
+  sample_query: string;
+  search_count: number;
+  unsolved_count: number;
+  zero_result_count: number;
+  avg_results: number | null;
+  best_confidence_seen: number | null;
+  last_searched_at: string | null;
+}
+
 // Supabase Database type for generic client
 export interface Database {
   public: {
@@ -74,6 +124,24 @@ export interface Database {
         Row: Segment;
         Insert: Omit<Segment, 'id' | 'created_at'> & { id?: number };
         Update: Partial<Omit<Segment, 'id' | 'created_at'>>;
+      };
+      video_feedback: {
+        Row: VideoFeedback;
+        Insert: Omit<VideoFeedback, 'id' | 'created_at'> & { id?: number };
+        Update: Partial<Omit<VideoFeedback, 'id' | 'created_at'>>;
+      };
+      query_log: {
+        Row: QueryLog;
+        Insert: Omit<QueryLog, 'id' | 'normalized_query' | 'created_at'> & { id?: number };
+        Update: Partial<Omit<QueryLog, 'id' | 'normalized_query' | 'created_at'>>;
+      };
+    };
+    Views: {
+      video_feedback_stats: {
+        Row: VideoFeedbackStats;
+      };
+      query_gaps: {
+        Row: QueryGap;
       };
     };
     Functions: {
@@ -109,6 +177,7 @@ export interface Database {
           end_time: number;
           rrf_score: number;
           semantic_similarity: number;
+          full_text_match: boolean;
         }[];
       };
     };
@@ -134,4 +203,8 @@ export interface HybridSearchResult {
   end_time: number;
   rrf_score: number;
   semantic_similarity: number;
+  // True when this segment matched the full-text branch (segment text or video
+  // title). Lets relevance filtering keep title/keyword matches whose semantic
+  // similarity is 0 (see relevance-filter.ts).
+  full_text_match: boolean;
 }

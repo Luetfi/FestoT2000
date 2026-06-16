@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { VideoCard, type VideoCardData } from './video-card';
-import { PRODUCT_CATEGORIES, type ProductCategory } from '@/lib/search/query-parser';
+import { PRODUCT_CATEGORIES, type ProductCategory } from '@/lib/search/festo-products';
 import { CategoryIcon } from '@/components/icons/festo-icons';
 import type { OfficialStatus } from '@/types/search';
 

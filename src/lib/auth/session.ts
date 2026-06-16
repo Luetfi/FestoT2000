@@ -1,4 +1,8 @@
 export const SESSION_COOKIE_NAME = 'festo_session';
+// Separate cookie for the admin area. Distinct name + a role claim (see
+// createAdminSession) keep admin auth fully independent from the app login,
+// even though both are HMAC-signed with the same AUTH_SECRET.
+export const ADMIN_SESSION_COOKIE_NAME = 'festo_admin_session';
 const SESSION_DURATION = 7 * 24 * 60 * 60; // 7 days in seconds
 
 function getSecret(): ArrayBuffer {
@@ -80,6 +84,32 @@ export async function verify(token: string): Promise<{ sub: string } | null> {
   if (!payload) return null;
   try {
     const data = JSON.parse(payload);
+    if (typeof data.exp !== 'number' || data.exp < Math.floor(Date.now() / 1000)) {
+      return null; // expired
+    }
+    return { sub: data.sub };
+  } catch {
+    return null;
+  }
+}
+
+// --- Admin session (separate gate) ---
+// Reuses the same signing/secret as the app session but stamps role:'admin'.
+// A normal festo_session token has no role claim, so it can never satisfy
+// verifyAdmin even if copied into the admin cookie.
+
+export async function createAdminSession(username: string): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const payload = JSON.stringify({ sub: username, role: 'admin', iat: now, exp: now + SESSION_DURATION });
+  return sign(payload);
+}
+
+export async function verifyAdmin(token: string): Promise<{ sub: string } | null> {
+  const payload = await verifySignature(token);
+  if (!payload) return null;
+  try {
+    const data = JSON.parse(payload);
+    if (data.role !== 'admin') return null;
     if (typeof data.exp !== 'number' || data.exp < Math.floor(Date.now() / 1000)) {
       return null; // expired
     }

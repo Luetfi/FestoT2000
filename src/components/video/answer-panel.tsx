@@ -2,6 +2,7 @@
 
 import { Loader2 } from 'lucide-react';
 import { formatTimeRange } from '@/types/search';
+import { FeedbackWidget, type FeedbackWidgetLabels } from '@/components/feedback/feedback-widget';
 
 interface ExplanationState {
   status: 'loading' | 'loaded' | 'error';
@@ -19,6 +20,9 @@ interface Segment {
 interface AnswerPanelProps {
   segment: Segment | null;
   explanation: ExplanationState | undefined;
+  videoId: number;
+  lang: string;
+  feedbackLabels: FeedbackWidgetLabels;
   labels: {
     yourAnswer: string;
     generatingExplanation: string;
@@ -26,7 +30,14 @@ interface AnswerPanelProps {
   };
 }
 
-export function AnswerPanel({ segment, explanation, labels }: AnswerPanelProps) {
+export function AnswerPanel({
+  segment,
+  explanation,
+  videoId,
+  lang,
+  feedbackLabels,
+  labels,
+}: AnswerPanelProps) {
   if (!segment) return null;
 
   return (
@@ -57,6 +68,17 @@ export function AnswerPanel({ segment, explanation, labels }: AnswerPanelProps) 
             {labels.generatingExplanation}
           </div>
         )}
+      </div>
+
+      {/* Editorial signal: does this video fit the topic? (general, not query-bound) */}
+      <div className="mt-4 border-t pt-4">
+        <FeedbackWidget
+          videoId={videoId}
+          feedbackType="video"
+          segmentId={Number(segment.id)}
+          lang={lang}
+          labels={feedbackLabels}
+        />
       </div>
     </div>
   );

@@ -101,10 +101,24 @@ export default async function VideoPage({ params, searchParams }: VideoPageProps
             channelName: channel?.name ?? 'Unknown',
             channelOfficialStatus: (channel?.official_status as OfficialStatus) ?? 'unknown',
           }}
+          videoId={videoId}
           segments={segments}
           initialSegmentId={segmentParam ?? null}
           searchQuery={queryParam ?? null}
           lang={lang}
+          feedbackLabels={{
+            question: dict.feedbackQuestionVideo,
+            helpful: dict.feedbackHelpful,
+            notHelpful: dict.feedbackNotHelpful,
+            thanks: dict.feedbackThanks,
+            reasons: {
+              not_relevant: dict.feedbackReasonNotRelevant,
+              wrong_topic: dict.feedbackReasonWrongTopic,
+              too_basic: dict.feedbackReasonTooBasic,
+              bad_quality: dict.feedbackReasonBadQuality,
+              other: dict.feedbackReasonOther,
+            },
+          }}
           labels={{
             back: dict.back,
             official: dict.officialLabel,

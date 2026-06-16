@@ -2,8 +2,8 @@
  * Comprehensive Festo product database
  *
  * Contains all major Festo product series with designations, descriptions,
- * categories, and search-relevant synonyms. Used by the query parser to
- * improve search accuracy and product matching.
+ * categories, and search-relevant synonyms. Used to build the browse/filter
+ * categories (PRODUCT_CATEGORIES) for the home page.
  *
  * Sources: Festo official catalog, product pages, and technical documentation.
  */
@@ -417,80 +417,28 @@ export const FESTO_PRODUCTS: FestoProduct[] = [
   { type: 'BionicCobot', name_de: 'BionicCobot', name_en: 'BionicCobot', category: 'didactic', synonyms: ['Cobot', 'kollaborativ', 'collaborative', 'Bionik', 'bionics'] },
 ];
 
-// ─── Derived Search Helpers ──────────────────────────────────────────
+// ─── Browse Filter Categories ────────────────────────────────────────
 
-/** All product type designations (for fast matching) */
-export const ALL_PRODUCT_TYPES = FESTO_PRODUCTS.map((p) => p.type);
-
-/**
- * Build a flat keyword list for search matching.
- * Includes: all type designations, all synonyms, all category keywords,
- * and all product names (DE + EN).
- */
-export function buildSearchableKeywords(): string[] {
-  const keywords = new Set<string>();
-
-  // Add all product type designations
-  for (const product of FESTO_PRODUCTS) {
-    keywords.add(product.type);
-    keywords.add(product.name_de);
-    keywords.add(product.name_en);
-    for (const synonym of product.synonyms) {
-      keywords.add(synonym);
-    }
-  }
-
-  // Add all category keywords
-  for (const category of FESTO_CATEGORIES) {
-    for (const keyword of category.keywords) {
-      keywords.add(keyword);
-    }
-  }
-
-  return Array.from(keywords);
+export interface ProductCategory {
+  id: string;
+  label: string;
+  keywords: string[];
 }
 
 /**
- * Find matching products for a search query.
- * Returns products where the type designation or any synonym matches.
+ * Category list for the home page browse/filter UI, derived from
+ * FESTO_CATEGORIES. Each category exposes its general keywords plus the
+ * product type designations (and uppercase synonyms) that belong to it.
  */
-export function findMatchingProducts(query: string): FestoProduct[] {
-  const queryUpper = query.toUpperCase();
-  const queryWords = queryUpper.split(/\s+/);
-
-  return FESTO_PRODUCTS.filter((product) => {
-    // Check if query contains the product type designation
-    if (queryUpper.includes(product.type.toUpperCase())) {
-      return true;
-    }
-
-    // Check if any word in the query exactly matches a product type
-    for (const word of queryWords) {
-      if (word === product.type.toUpperCase()) {
-        return true;
-      }
-    }
-
-    return false;
-  });
-}
-
-/**
- * Find matching categories for a search query.
- * Returns categories where any keyword matches.
- */
-export function findMatchingCategories(query: string): FestoProductCategory[] {
-  const queryLower = query.toLowerCase();
-
-  return FESTO_CATEGORIES.filter((category) =>
-    category.keywords.some((keyword) => queryLower.includes(keyword.toLowerCase()))
-  );
-}
-
-/**
- * Get all product type designations and synonyms for a matching product.
- * Useful for enhancing the search query with related terms.
- */
-export function getRelatedTerms(product: FestoProduct): string[] {
-  return [product.type, product.name_de, product.name_en, ...product.synonyms];
-}
+export const PRODUCT_CATEGORIES: ProductCategory[] = FESTO_CATEGORIES.map((cat) => ({
+  id: cat.id,
+  label: cat.label_de,
+  keywords: [
+    ...cat.keywords,
+    // Include all product type designations in this category
+    ...FESTO_PRODUCTS.filter((p) => p.category === cat.id).flatMap((p) => [
+      p.type,
+      ...p.synonyms.filter((s) => s.length >= 3 && /^[A-Z]/.test(s)),
+    ]),
+  ],
+}));
