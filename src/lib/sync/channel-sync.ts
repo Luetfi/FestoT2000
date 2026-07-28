@@ -12,6 +12,8 @@ export interface SyncResult {
   candidateCount: number;
   newVideoIds: string[];
   ingested: number;
+  /** Pending videos left over because of the per-run cap; next run picks them up. */
+  deferred: number;
   errors: string[];
 }
 
@@ -19,10 +21,13 @@ export interface SyncResult {
  * Sync a single YouTube channel: discover new videos and ingest them.
  *
  * 1. Fetch recent video IDs via RSS (0 quota) with API fallback (~2 quota)
- * 2. Filter out videos already in the database
- * 3. Ingest only the new ones
+ * 2. Filter out videos that are already fully processed
+ * 3. Ingest the rest, capped at maxVideos per run
+ *
+ * @param maxVideos - Cap on videos ingested per run. Protects against the
+ *   function timeout; leftovers are picked up by the next run.
  */
-export async function syncChannel(channelId: string): Promise<SyncResult> {
+export async function syncChannel(channelId: string, maxVideos = 4): Promise<SyncResult> {
   let candidateIds: string[];
   let source: 'rss' | 'api';
 
@@ -41,25 +46,48 @@ export async function syncChannel(channelId: string): Promise<SyncResult> {
   }
 
   if (candidateIds.length === 0) {
-    return { channelId, source, candidateCount: 0, newVideoIds: [], ingested: 0, errors: [] };
+    return { channelId, source, candidateCount: 0, newVideoIds: [], ingested: 0, deferred: 0, errors: [] };
   }
 
-  // Step 2: Find which videos are already in the database
+  // Step 2: Filter out videos that are already DONE. A row existing is not
+  // enough — ingestVideo() upserts the video row before fetching the transcript,
+  // so a run that dies mid-pipeline (timeout, OpenAI error) leaves a row behind
+  // with has_transcript = false. Skipping on mere existence would strand those
+  // videos permanently. Done means either:
+  //   - has_transcript = true  -> fully ingested and searchable
+  //   - review_status = 'rejected' -> deliberately excluded (no DE/EN transcript,
+  //     empty transcript, or rejected by the relevance gate)
+  // Everything else is retried on the next run.
   const { data: existingRows } = await getSupabaseAdmin()
     .from('videos')
-    .select('youtube_id')
+    .select('youtube_id, has_transcript, review_status')
     .in('youtube_id', candidateIds);
 
-  const existingIds = new Set((existingRows ?? []).map((r) => (r as { youtube_id: string }).youtube_id));
-  const newVideoIds = candidateIds.filter((id) => !existingIds.has(id));
+  const doneIds = new Set(
+    (existingRows ?? [])
+      .map((r) => r as { youtube_id: string; has_transcript: boolean | null; review_status: string | null })
+      .filter((r) => r.has_transcript === true || r.review_status === 'rejected')
+      .map((r) => r.youtube_id)
+  );
 
-  if (newVideoIds.length === 0) {
-    return { channelId, source, candidateCount: candidateIds.length, newVideoIds: [], ingested: 0, errors: [] };
+  const pendingVideoIds = candidateIds.filter((id) => !doneIds.has(id));
+
+  if (pendingVideoIds.length === 0) {
+    return { channelId, source, candidateCount: candidateIds.length, newVideoIds: [], ingested: 0, deferred: 0, errors: [] };
   }
 
-  // Step 3: Ingest new videos
-  let ingested = 0;
+  // Step 3: Ingest, newest first, capped so the run fits in the function budget
+  const newVideoIds = pendingVideoIds.slice(0, maxVideos);
+  const deferred = pendingVideoIds.length - newVideoIds.length;
+
+  if (deferred > 0) {
+    console.log(
+      `[channel-sync] ${channelId}: ${deferred} video(s) deferred to the next run (cap ${maxVideos})`
+    );
+  }
+
   const errors: string[] = [];
+  let ingested = 0;
 
   for (const videoId of newVideoIds) {
     console.log(`[channel-sync] Ingesting new video ${videoId} from channel ${channelId}`);
@@ -72,5 +100,5 @@ export async function syncChannel(channelId: string): Promise<SyncResult> {
     }
   }
 
-  return { channelId, source, candidateCount: candidateIds.length, newVideoIds, ingested, errors };
+  return { channelId, source, candidateCount: candidateIds.length, newVideoIds, ingested, deferred, errors };
 }
