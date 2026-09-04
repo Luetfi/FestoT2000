@@ -1,5 +1,5 @@
-// Transcript chunking with overlap - server-only
-// Segment transcripts into 30-60 second chunks with overlap
+// Transcript chunking - server-only
+// Segment transcripts into non-overlapping chunks of ~800 characters
 import 'server-only';
 import type { TranscriptSegment } from '@/lib/youtube/transcripts';
 
@@ -16,7 +16,7 @@ export interface Chunk {
 
 /**
  * Chunk transcript into sequential, non-overlapping segments
- * Target ~800 characters per chunk (roughly 30-60 seconds of speech)
+ * Target ~800 characters per chunk (roughly one minute of speech, measured median 72 s)
  * Each segment starts exactly where the previous one ended — no gaps, no overlap.
  *
  * @param segments - Transcript segments with millisecond timestamps

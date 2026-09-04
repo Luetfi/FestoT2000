@@ -31,7 +31,9 @@ function groupByVideo(segments: SearchResultSegment[]): GroupedVideoResult[] {
   for (const seg of segments) {
     const existing = map.get(seg.video_id);
     if (existing) {
-      existing.matchCount++;
+      // Injizierte Segmente sind die Sprungstelle, aber kein eigener Treffer -
+      // sie duerfen die Zahl der gefundenen Stellen nicht erhoehen.
+      if (!seg.injected) existing.matchCount++;
       existing.allSegments.push(seg);
       // The displayed segment is the best-matching one, so its time range and
       // confidence reflect the most relevant moment of this video.
@@ -49,7 +51,7 @@ function groupByVideo(segments: SearchResultSegment[]): GroupedVideoResult[] {
         channel_official_status: seg.channel_official_status,
         bestSegment: seg,
         allSegments: [seg],
-        matchCount: 1,
+        matchCount: seg.injected ? 0 : 1,
       });
     }
   }

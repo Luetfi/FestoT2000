@@ -21,6 +21,10 @@ export interface SearchResultSegment {
   // 0-100 confidence (LLM judge) that this segment answers the query.
   // Set by the search API; optional because segments built elsewhere don't have it.
   confidence?: number;
+  // True when this segment is not itself a hit but was added by the search API
+  // as the video's jump target (see segment-picker.ts). Such a segment is the
+  // one the user should start at; it must not be counted as an extra match.
+  injected?: boolean;
 
   // Video data (denormalized)
   video_id: string;

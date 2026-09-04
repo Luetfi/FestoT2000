@@ -1,6 +1,5 @@
 import { Suspense } from 'react';
 import { FestoHeader } from '@/components/layout/festo-header';
-import { ChatWidget } from '@/components/chat/chat-widget';
 
 export default function MainLayout({
   children,
@@ -20,7 +19,6 @@ export default function MainLayout({
         <FestoHeader />
       </Suspense>
       {children}
-      <ChatWidget />
     </>
   );
 }

@@ -85,10 +85,10 @@ function Get-SupabaseHost {
 $supabaseInfo = Get-SupabaseHost
 $supabaseHostName = $supabaseInfo.Host
 
-# Was die App tatsaechlich braucht. "Runtime" = fuer Suche/Chat zwingend,
+# Was die App tatsaechlich braucht. "Runtime" = fuer die Suche zwingend,
 # "Ingestion" = nur beim Befuellen des Korpus, "Browser" = nur im Frontend.
 $Targets = @(
-  @{ Host = 'api.openai.com';                       Url = 'https://api.openai.com/v1/models';                   Scope = 'Runtime';   Note = 'Embeddings, LLM-Judge, Chat' }
+  @{ Host = 'api.openai.com';                       Url = 'https://api.openai.com/v1/models';                   Scope = 'Runtime';   Note = 'Embeddings, LLM-Judge' }
 )
 
 if ($supabaseHostName) {

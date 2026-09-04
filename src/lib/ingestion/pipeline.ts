@@ -205,7 +205,7 @@ export async function ingestVideo(
       // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
       .eq('id', video.id);
 
-    // Chunk transcript into 30-60 second segments with overlap
+    // Chunk transcript into non-overlapping segments of roughly one minute
     const chunks = chunkTranscript(transcriptResult.segments);
     if (chunks.length === 0) {
       // Empty transcript - treat as unavailable (and not approved/searchable).

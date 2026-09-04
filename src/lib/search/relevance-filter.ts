@@ -1,11 +1,15 @@
 import type { SearchResultSegment } from '@/types/search';
+import { PRODUCTION_SEARCH_CONFIG } from '@/lib/search/search-config';
 
-const MIN_SEMANTIC_SIMILARITY = 0.3;
-const MAX_VIDEO_GROUPS = 5;
+// Die Vorgabewerte stehen zentral in search-config.ts, damit die Suche und
+// Vergleichsmessungen dieselben Zahlen benutzen. Die Schwellen bleiben hier als
+// Parameter ueberschreibbar, damit sie sich einzeln variieren lassen.
+const MIN_SEMANTIC_SIMILARITY = PRODUCTION_SEARCH_CONFIG.minSemanticSimilarity;
+const MAX_VIDEO_GROUPS = PRODUCTION_SEARCH_CONFIG.maxVideoGroups;
 // Minimum LLM content-relevance confidence (0-100) for a segment to be shown.
 // The judge rates 0-39 as "kaum/gar nicht relevant" and 40-69 as partial answers;
 // 50 drops irrelevant segments and the weakest partial answers while keeping useful ones.
-const MIN_CONFIDENCE = 50;
+const MIN_CONFIDENCE = PRODUCTION_SEARCH_CONFIG.minConfidence;
 
 /**
  * Cheap absolute pre-filter (runs before the LLM judge): drop segments whose
@@ -31,12 +35,13 @@ const MIN_CONFIDENCE = 50;
  * relevant one out of the top groups.
  */
 export function filterByRelevance(
-  results: SearchResultSegment[]
+  results: SearchResultSegment[],
+  minSemanticSimilarity: number = MIN_SEMANTIC_SIMILARITY
 ): SearchResultSegment[] {
   if (results.length === 0) return [];
 
   return results.filter(
-    (r) => r.full_text_match || r.semantic_similarity >= MIN_SEMANTIC_SIMILARITY
+    (r) => r.full_text_match || r.semantic_similarity >= minSemanticSimilarity
   );
 }
 
@@ -59,17 +64,25 @@ export function filterByConfidence(
 
 /**
  * Limit results to segments from at most `max` distinct videos, preserving order.
+ *
+ * Die Liste ist nach Confidence sortiert, die Segmente eines Videos stehen darin
+ * also verstreut. Ein Abbruch beim ersten Segment des (max+1)-ten Videos wuerde
+ * deshalb auch noch nicht gesehene Segmente der zugelassenen Videos verwerfen -
+ * und damit ausgerechnet die weiteren Fundstellen im besten Treffer. Daher wird
+ * uebersprungen statt abgebrochen.
  */
 export function capVideoGroups(
   results: SearchResultSegment[],
   max: number = MAX_VIDEO_GROUPS
 ): SearchResultSegment[] {
-  const seenVideos = new Set<string>();
+  const acceptedVideos = new Set<string>();
   const capped: SearchResultSegment[] = [];
 
   for (const result of results) {
-    seenVideos.add(result.video_id);
-    if (seenVideos.size > max) break;
+    if (!acceptedVideos.has(result.video_id)) {
+      if (acceptedVideos.size >= max) continue;
+      acceptedVideos.add(result.video_id);
+    }
     capped.push(result);
   }
 

@@ -14,8 +14,8 @@ verteilt sich also so:
 
 | Host | Ebene | Wofür | Kritisch für |
 |---|---|---|---|
-| `api.openai.com` | Node | Embedding pro Query, LLM-Judge, Chat, Query-Suggester | Suche & Chat |
-| `epdtzrsgukrxecaitlzy.supabase.co` | Node | `hybrid_search_segments`-RPC, alle Tabellen | Suche & Chat |
+| `api.openai.com` | Node | Embedding pro Query, LLM-Judge, Query-Suggester | Suche |
+| `epdtzrsgukrxecaitlzy.supabase.co` | Node | `hybrid_search_segments`-RPC, alle Tabellen | Suche |
 | `www.googleapis.com` | Node | YouTube Data API | nur Ingestion / Cron |
 | `registry.npmjs.org` | Node | `npm install` | nur Setup |
 | `www.youtube.com` | Browser | Player-iframe (`react-youtube`) | Video-Wiedergabe |
@@ -201,8 +201,8 @@ Robust und netzunabhängig, Aufwand etwa ein halber Tag:
   Kein Code-Eingriff, die acht Migrationen unter `supabase/migrations/` laufen
   unverändert.
 - **LLM und Embeddings:** Ollama antwortet OpenAI-kompatibel auf
-  `http://localhost:11434/v1`. Nötig ist lediglich ein `baseURL` in den vier
-  Clients `src/lib/openai/{embeddings,chat,summaries,title}.ts`.
+  `http://localhost:11434/v1`. Nötig ist lediglich ein `baseURL` in den beiden
+  Clients `src/lib/openai/{embeddings,summaries}.ts`.
 - **Haken:** Die vorhandenen Vektoren stammen von `text-embedding-3-small` mit
   1536 Dimensionen. Ein anderes Modell erzeugt inkompatible Vektoren, der Korpus
   muss also einmalig neu eingebettet werden.
