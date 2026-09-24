@@ -45,6 +45,7 @@
   "generatingExplanation": "Erklärung wird erstellt...",
   "explanationError": "Erklärung konnte nicht geladen werden.",
   "yourAnswer": "Deine Antwort",
+  "browseNotice": "Ohne Suchanfrage wird keine Antwort erzeugt. Wähle ein Kapitel, um zur passenden Stelle im Video zu springen.",
   "allChapters": "Alle Kapitel",
   "videoDescription": "Video-Beschreibung",
   "showDescription": "Beschreibung anzeigen",

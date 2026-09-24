@@ -45,6 +45,7 @@
   "generatingExplanation": "Generating explanation...",
   "explanationError": "Failed to load explanation.",
   "yourAnswer": "Your Answer",
+  "browseNotice": "No answer is generated without a search query. Pick a chapter to jump to that point in the video.",
   "allChapters": "All Chapters",
   "videoDescription": "Video Description",
   "showDescription": "Show description",

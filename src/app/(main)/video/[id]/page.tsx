@@ -133,6 +133,7 @@ export default async function VideoPage({ params, searchParams }: VideoPageProps
             generatingExplanation: dict.generatingExplanation,
             explanationError: dict.explanationError,
             yourAnswer: dict.yourAnswer,
+            browseNotice: dict.browseNotice,
             allChapters: dict.allChapters,
             videoDescription: dict.videoDescription,
             showDescription: dict.showDescription,

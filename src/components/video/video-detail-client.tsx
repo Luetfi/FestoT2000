@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { YouTubePlayer } from './youtube-player';
 import { ChapterList } from './chapter-list';
 import { AnswerPanel } from './answer-panel';
+import { FeedbackWidget } from '@/components/feedback/feedback-widget';
 import { formatDuration } from '@/types/search';
 import type { OfficialStatus } from '@/types/search';
 import type { FeedbackWidgetLabels } from '@/components/feedback/feedback-widget';
@@ -58,6 +59,7 @@ interface VideoDetailClientProps {
     generatingExplanation: string;
     explanationError: string;
     yourAnswer: string;
+    browseNotice: string;
     allChapters: string;
     videoDescription: string;
     showDescription: string;
@@ -77,9 +79,19 @@ export function VideoDetailClient({
 }: VideoDetailClientProps) {
   const router = useRouter();
 
-  const initialSegment = initialSegmentId
-    ? segments.find((s) => s.id === initialSegmentId) ?? segments[0] ?? null
-    : segments[0] ?? null;
+  // An answer only exists in response to a question. Reaching this page without
+  // a search query (e.g. from the start page) is pure browsing: no segment is
+  // proposed as "the answer" and no explanation is generated.
+  const hasQuery = !!searchQuery;
+
+  const linkedSegment = initialSegmentId
+    ? segments.find((s) => s.id === initialSegmentId) ?? null
+    : null;
+  // Without a query only an explicitly linked segment stays active - it is the
+  // deep-link jump target, not a suggested result.
+  const initialSegment = hasQuery
+    ? linkedSegment ?? segments[0] ?? null
+    : linkedSegment;
 
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(
     initialSegment?.id ?? null
@@ -123,9 +135,9 @@ export function VideoDetailClient({
     }
   }, [searchQuery]);
 
-  // Fetch explanation for initial segment on mount
+  // Fetch explanation for initial segment on mount - only when a query exists
   useState(() => {
-    if (initialSegment) {
+    if (hasQuery && initialSegment) {
       fetchExplanation(initialSegment.id);
     }
   });
@@ -137,10 +149,12 @@ export function VideoDetailClient({
       setAutoPlay(true);
       setPlayerKey((k) => k + 1);
 
-      // Fetch explanation if not already loaded
-      const existing = explanations.get(segment.id);
-      if (!existing || existing.status === 'error') {
-        fetchExplanation(segment.id);
+      // Fetch explanation if not already loaded - only when a query exists
+      if (hasQuery) {
+        const existing = explanations.get(segment.id);
+        if (!existing || existing.status === 'error') {
+          fetchExplanation(segment.id);
+        }
       }
 
       // Update URL for deep-linking without navigation
@@ -149,7 +163,7 @@ export function VideoDetailClient({
       url.searchParams.set('lang', lang);
       window.history.replaceState(null, '', url.toString());
     },
-    [lang, explanations, fetchExplanation]
+    [lang, explanations, fetchExplanation, hasQuery]
   );
 
   const activeSegment = activeSegmentId
@@ -158,6 +172,46 @@ export function VideoDetailClient({
 
   const isOfficial = video.channelOfficialStatus === 'official';
   const youtubeUrl = `https://www.youtube.com/watch?v=${video.videoYoutubeId}${playerStartTime ? `&t=${playerStartTime}s` : ''}`;
+
+  const playerSection = (
+    <>
+      <div className="aspect-video bg-black rounded-lg overflow-hidden">
+        <YouTubePlayer
+          key={playerKey}
+          videoId={video.videoYoutubeId}
+          startTime={playerStartTime}
+          autoPlay={autoPlay}
+          className="w-full h-full"
+        />
+      </div>
+
+      {/* Compact metadata row */}
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <span className="text-muted-foreground">{video.channelName}</span>
+        <Badge variant={isOfficial ? 'default' : 'secondary'}>
+          {isOfficial ? labels.official : labels.community}
+        </Badge>
+        {video.videoDurationSeconds && (
+          <span className="text-muted-foreground">
+            {formatDuration(video.videoDurationSeconds)}
+          </span>
+        )}
+        <Button asChild variant="outline" size="sm">
+          <a href={youtubeUrl} target="_blank" rel="noopener noreferrer">
+            <ExternalLinkIcon size={14} className="mr-1.5" />
+            {labels.openOnYouTube}
+          </a>
+        </Button>
+      </div>
+
+      {/* No transcript notice */}
+      {!video.videoHasTranscript && (
+        <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded">
+          {labels.noTranscriptNotice}
+        </p>
+      )}
+    </>
+  );
 
   return (
     <div>
@@ -172,63 +226,42 @@ export function VideoDetailClient({
       {/* Title */}
       <h1 className="text-2xl font-bold mb-4">{video.videoTitle}</h1>
 
-      {/* Top section: Player + Answer Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
-        {/* Player column */}
-        <div className="lg:col-span-3 space-y-3">
-          <div className="aspect-video bg-black rounded-lg overflow-hidden">
-            <YouTubePlayer
-              key={playerKey}
-              videoId={video.videoYoutubeId}
-              startTime={playerStartTime}
-              autoPlay={autoPlay}
-              className="w-full h-full"
+      {hasQuery ? (
+        /* Top section: Player + Answer Panel */
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
+          <div className="lg:col-span-3 space-y-3">{playerSection}</div>
+
+          <div className="lg:col-span-2">
+            <AnswerPanel
+              segment={activeSegment}
+              explanation={activeSegmentId ? explanations.get(activeSegmentId) : undefined}
+              videoId={videoId}
+              lang={lang}
+              feedbackLabels={feedbackLabels}
+              labels={{
+                yourAnswer: labels.yourAnswer,
+                generatingExplanation: labels.generatingExplanation,
+                explanationError: labels.explanationError,
+              }}
             />
           </div>
-
-          {/* Compact metadata row */}
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="text-muted-foreground">{video.channelName}</span>
-            <Badge variant={isOfficial ? 'default' : 'secondary'}>
-              {isOfficial ? labels.official : labels.community}
-            </Badge>
-            {video.videoDurationSeconds && (
-              <span className="text-muted-foreground">
-                {formatDuration(video.videoDurationSeconds)}
-              </span>
-            )}
-            <Button asChild variant="outline" size="sm">
-              <a href={youtubeUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLinkIcon size={14} className="mr-1.5" />
-                {labels.openOnYouTube}
-              </a>
-            </Button>
+        </div>
+      ) : (
+        /* Browsing without a query: player and chapters only, no answer */
+        <div className="max-w-3xl mb-6 space-y-3">
+          {playerSection}
+          <p className="text-sm text-muted-foreground">{labels.browseNotice}</p>
+          <div className="border-t pt-3">
+            <FeedbackWidget
+              videoId={videoId}
+              feedbackType="video"
+              segmentId={activeSegment ? Number(activeSegment.id) : undefined}
+              lang={lang}
+              labels={feedbackLabels}
+            />
           </div>
-
-          {/* No transcript notice */}
-          {!video.videoHasTranscript && (
-            <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded">
-              {labels.noTranscriptNotice}
-            </p>
-          )}
         </div>
-
-        {/* Answer panel column */}
-        <div className="lg:col-span-2">
-          <AnswerPanel
-            segment={activeSegment}
-            explanation={activeSegmentId ? explanations.get(activeSegmentId) : undefined}
-            videoId={videoId}
-            lang={lang}
-            feedbackLabels={feedbackLabels}
-            labels={{
-              yourAnswer: labels.yourAnswer,
-              generatingExplanation: labels.generatingExplanation,
-              explanationError: labels.explanationError,
-            }}
-          />
-        </div>
-      </div>
+      )}
 
       {/* Divider + Chapter grid (full width) */}
       <div className="border-t pt-6 mb-6">
