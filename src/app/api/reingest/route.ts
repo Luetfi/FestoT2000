@@ -2,7 +2,7 @@
 // Requires INGESTION_SECRET header for access
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { query } from '@/lib/db';
 import { ingestVideo } from '@/lib/ingestion/pipeline';
 
 export const maxDuration = 300; // 5 minutes
@@ -25,12 +25,10 @@ export async function POST(request: NextRequest) {
 
   try {
     // Fetch all youtube_ids from the database
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: videos, error } = await getSupabaseAdmin()
-      .from('videos')
-      .select('youtube_id') as { data: { youtube_id: string }[] | null; error: unknown };
-
-    if (error || !videos) {
+    let videos: { youtube_id: string }[];
+    try {
+      videos = await query<{ youtube_id: string }>('SELECT youtube_id FROM videos');
+    } catch {
       return NextResponse.json(
         { error: 'Failed to fetch videos from database' },
         { status: 500 }

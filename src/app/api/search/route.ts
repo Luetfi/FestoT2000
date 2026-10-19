@@ -1,6 +1,7 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { query as dbQuery, queryOne, toVector } from '@/lib/db';
+import type { HybridSearchResult } from '@/lib/db/types';
 import { generateEmbedding } from '@/lib/openai/embeddings';
 import { enrichSearchResults } from '@/lib/search/enrichment';
 import { filterByRelevance, filterByConfidence, capVideoGroups } from '@/lib/search/relevance-filter';
@@ -64,29 +65,42 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const supabase = getSupabaseAdmin();
-    // @ts-expect-error - RPC function types may not be fully inferred
-    const { data: rawResults, error } = await supabase.rpc('hybrid_search_segments', {
-      query_text: query,
-      query_embedding: embedding,
-      match_count: config.matchCount,
-      full_text_weight: config.fullTextWeight,
-      semantic_weight: config.semanticWeight,
-      rrf_k: config.rrfK,
-      query_text_alt: queryAlt,
-      query_embedding_alt: embeddingAlt,
-      fts_mode: config.ftsMode,
-    });
-
-    if (error) {
+    let rawResults: HybridSearchResult[];
+    try {
+      rawResults = await dbQuery<HybridSearchResult>(
+        `SELECT * FROM hybrid_search_segments(
+           query_text => $1,
+           query_embedding => $2::vector,
+           match_count => $3,
+           full_text_weight => $4,
+           semantic_weight => $5,
+           rrf_k => $6,
+           query_text_alt => $7,
+           query_embedding_alt => $8::vector,
+           fts_mode => $9
+         )`,
+        [
+          query,
+          toVector(embedding),
+          config.matchCount,
+          config.fullTextWeight,
+          config.semanticWeight,
+          config.rrfK,
+          queryAlt,
+          embeddingAlt ? toVector(embeddingAlt) : null,
+          config.ftsMode,
+        ]
+      );
+    } catch (error) {
       console.error('Hybrid search error:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
       return NextResponse.json(
-        { error: `Database search failed: ${error.message}` },
+        { error: `Database search failed: ${message}` },
         { status: 500 }
       );
     }
 
-    const enriched = await enrichSearchResults(rawResults || []);
+    const enriched = await enrichSearchResults(rawResults);
     // Cheap score-based pre-filter; video-group cap is applied after the judge.
     const filtered = filterByRelevance(enriched, config.minSemanticSimilarity);
 
@@ -138,24 +152,13 @@ export async function GET(request: NextRequest) {
       try {
         const topConfidence =
           results.length > 0 ? Math.round(maxConfidence) : null;
-        const { data: logRow, error: logError } = await supabase
-          .from('query_log')
-          // @ts-expect-error - insert on loosely-inferred admin client
-          .insert({
-            query,
-            lang,
-            result_count: results.length,
-            top_confidence: topConfidence,
-            was_solved: null,
-            session_id: sessionId,
-          })
-          .select('id')
-          .single();
-        if (logError) {
-          console.error('Query log insert failed:', logError);
-        } else {
-          queryLogId = (logRow as { id: number } | null)?.id;
-        }
+        const logRow = await queryOne<{ id: number }>(
+          `INSERT INTO query_log (query, lang, result_count, top_confidence, was_solved, session_id)
+           VALUES ($1, $2, $3, $4, NULL, $5)
+           RETURNING id`,
+          [query, lang, results.length, topConfidence, sessionId]
+        );
+        queryLogId = logRow?.id;
       } catch (logErr) {
         console.error('Query log insert threw:', logErr);
       }

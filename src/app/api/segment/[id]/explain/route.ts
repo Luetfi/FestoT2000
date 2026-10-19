@@ -1,6 +1,6 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { query as dbQuery, queryOne } from '@/lib/db';
 import { generateExplanation } from '@/lib/openai/summaries';
 
 export async function GET(
@@ -16,16 +16,12 @@ export async function GET(
   const query = request.nextUrl.searchParams.get('q') || undefined;
 
   try {
-    const supabase = getSupabaseAdmin();
+    const segment = await queryOne<{ id: number; text: string; explanation: string | null }>(
+      'SELECT id, text, explanation FROM segments WHERE id = $1',
+      [segmentId]
+    );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: segment, error: fetchError }: { data: any; error: any } = await supabase
-      .from('segments')
-      .select('id, text, explanation')
-      .eq('id', segmentId)
-      .single();
-
-    if (fetchError || !segment) {
+    if (!segment) {
       return NextResponse.json({ error: 'Segment not found' }, { status: 404 });
     }
 
@@ -44,10 +40,7 @@ export async function GET(
     const explanation = await generateExplanation(segment.text);
 
     // Cache generic explanation in DB
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from('segments') as any)
-      .update({ explanation })
-      .eq('id', segmentId);
+    await dbQuery('UPDATE segments SET explanation = $2 WHERE id = $1', [segmentId, explanation]);
 
     return NextResponse.json({ explanation });
   } catch (error) {

@@ -3,9 +3,9 @@
 // Writes go through the service-role client, exactly like the search/admin routes.
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { query as dbQuery } from '@/lib/db';
 import { getOrCreateFeedbackSession, setFeedbackSession } from '@/lib/feedback/session';
-import type { FeedbackType } from '@/lib/supabase/types';
+import type { FeedbackType } from '@/lib/db/types';
 
 const FEEDBACK_TYPES: FeedbackType[] = ['search_result', 'video'];
 const REASONS = ['not_relevant', 'wrong_topic', 'too_basic', 'bad_quality', 'other'];
@@ -46,26 +46,31 @@ export async function POST(request: NextRequest) {
 
   const { sessionId, isNew } = getOrCreateFeedbackSession(request);
 
-  const { error } = await getSupabaseAdmin()
-    .from('video_feedback')
-    // @ts-expect-error - upsert on loosely-inferred admin client
-    .upsert(
-      {
-        video_id: videoId,
-        segment_id: typeof segmentId === 'number' ? segmentId : null,
-        feedback_type: feedbackType,
-        is_positive: isPositive,
-        query: typeof query === 'string' ? query.trim() : '',
-        reason: cleanReason,
-        lang: typeof lang === 'string' ? lang : null,
-        session_id: sessionId,
-      },
-      { onConflict: 'session_id,video_id,feedback_type,query' }
+  try {
+    await dbQuery(
+      `INSERT INTO video_feedback
+         (video_id, segment_id, feedback_type, is_positive, query, reason, lang, session_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (session_id, video_id, feedback_type, query) DO UPDATE SET
+         segment_id = EXCLUDED.segment_id,
+         is_positive = EXCLUDED.is_positive,
+         reason = EXCLUDED.reason,
+         lang = EXCLUDED.lang`,
+      [
+        videoId,
+        typeof segmentId === 'number' ? segmentId : null,
+        feedbackType,
+        isPositive,
+        typeof query === 'string' ? query.trim() : '',
+        cleanReason,
+        typeof lang === 'string' ? lang : null,
+        sessionId,
+      ]
     );
-
-  if (error) {
+  } catch (error) {
     console.error('Feedback insert failed:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   const res = NextResponse.json({ success: true });

@@ -3,7 +3,7 @@
 // POST: ingests videos by ID directly (cheap: 1 unit/video)
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { query } from '@/lib/db';
 import { searchVideos } from '@/lib/youtube/api';
 import { ingestVideo, IngestionResult } from '@/lib/ingestion/pipeline';
 import { SEED_QUERIES, COMMUNITY_VIDEO_IDS } from '@/lib/ingestion/seeds';
@@ -12,6 +12,14 @@ const TARGET_VIDEO_COUNT = 50;
 const VIDEOS_PER_QUERY = 6;
 
 export const maxDuration = 300; // 5 minutes for Vercel
+
+/** Delete the whole corpus in FK order: segments → transcripts → videos → channels. */
+async function clearCorpus(): Promise<void> {
+  await query('DELETE FROM segments');
+  await query('DELETE FROM transcripts');
+  await query('DELETE FROM videos');
+  await query('DELETE FROM channels');
+}
 
 export async function GET(request: NextRequest) {
   const isDev = process.env.NODE_ENV === 'development';
@@ -35,7 +43,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Missing YOUTUBE_API_KEY' }, { status: 500 });
   }
 
-  const supabase = getSupabaseAdmin();
   const startTime = Date.now();
   const log = (msg: string) => console.log(`[seed] ${msg}`);
 
@@ -43,16 +50,7 @@ export async function GET(request: NextRequest) {
     // ── Step 1: Clean ALL existing data (FK order: segments → transcripts → videos → channels) ──
     log('Cleaning all existing data...');
 
-    const { data: allVideos } = await supabase.from('videos').select('id');
-    const allVideoIds = (allVideos ?? []).map((v: { id: number }) => v.id);
-
-    if (allVideoIds.length > 0) {
-      await supabase.from('segments').delete().in('video_id', allVideoIds);
-      await supabase.from('transcripts').delete().in('video_id', allVideoIds);
-    }
-
-    await supabase.from('videos').delete().neq('id', 0);
-    await supabase.from('channels').delete().neq('id', 0);
+    await clearCorpus();
 
     log('Cleanup done');
 
@@ -224,21 +222,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const supabase = getSupabaseAdmin();
   const startTime = Date.now();
   const log = (msg: string) => console.log(`[seed:direct] ${msg}`);
 
   try {
     if (clean) {
       log('Cleaning all existing data...');
-      const { data: allVideos } = await supabase.from('videos').select('id');
-      const allDbIds = (allVideos ?? []).map((v: { id: number }) => v.id);
-      if (allDbIds.length > 0) {
-        await supabase.from('segments').delete().in('video_id', allDbIds);
-        await supabase.from('transcripts').delete().in('video_id', allDbIds);
-      }
-      await supabase.from('videos').delete().neq('id', 0);
-      await supabase.from('channels').delete().neq('id', 0);
+      await clearCorpus();
       log('Cleanup done');
     }
 

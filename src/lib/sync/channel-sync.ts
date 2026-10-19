@@ -4,7 +4,7 @@ import 'server-only';
 import { fetchChannelRss } from '@/lib/youtube/rss';
 import { fetchChannelVideoIds } from '@/lib/youtube/api';
 import { ingestVideo } from '@/lib/ingestion/pipeline';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { query } from '@/lib/db';
 
 export interface SyncResult {
   channelId: string;
@@ -58,14 +58,17 @@ export async function syncChannel(channelId: string, maxVideos = 4): Promise<Syn
   //   - review_status = 'rejected' -> deliberately excluded (no DE/EN transcript,
   //     empty transcript, or rejected by the relevance gate)
   // Everything else is retried on the next run.
-  const { data: existingRows } = await getSupabaseAdmin()
-    .from('videos')
-    .select('youtube_id, has_transcript, review_status')
-    .in('youtube_id', candidateIds);
+  const existingRows = await query<{
+    youtube_id: string;
+    has_transcript: boolean | null;
+    review_status: string | null;
+  }>(
+    'SELECT youtube_id, has_transcript, review_status FROM videos WHERE youtube_id = ANY($1::text[])',
+    [candidateIds]
+  );
 
   const doneIds = new Set(
-    (existingRows ?? [])
-      .map((r) => r as { youtube_id: string; has_transcript: boolean | null; review_status: string | null })
+    existingRows
       .filter((r) => r.has_transcript === true || r.review_status === 'rejected')
       .map((r) => r.youtube_id)
   );

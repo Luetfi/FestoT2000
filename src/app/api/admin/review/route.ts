@@ -5,7 +5,7 @@
 // videos so a human can remove a bad one. POST flips review_status.
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { query } from '@/lib/db';
 
 export interface ReviewVideo {
   id: number;
@@ -23,26 +23,8 @@ export interface ReviewVideo {
 }
 
 export async function GET() {
-  const supabase = getSupabaseAdmin();
-
   // Only live (approved) videos from community channels — the videos a reviewer
-  // might want to pull back out of search. !inner so the channel filter narrows
-  // the parent rows.
-  const { data, error } = await supabase
-    .from('videos')
-    .select(
-      'id, youtube_id, title, thumbnail_url, duration_seconds, relevance_score, relevance_reason, content_type, channels!inner(name, official_status), segments(count)'
-    )
-    .eq('review_status', 'approved')
-    .eq('channels.official_status', 'community')
-    .order('created_at', { ascending: false })
-    .limit(200);
-
-  if (error) {
-    console.error('Review queue fetch failed:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
+  // might want to pull back out of search.
   interface RawReviewRow {
     id: number;
     youtube_id: string;
@@ -52,29 +34,49 @@ export async function GET() {
     relevance_score: number | null;
     relevance_reason: string | null;
     content_type: string | null;
-    channels: { name: string; official_status: string } | null;
-    segments: { count: number }[] | null;
+    channel_name: string | null;
+    segment_count: number;
   }
 
-  const rows = (data ?? []) as unknown as RawReviewRow[];
+  let rows: RawReviewRow[];
+  try {
+    rows = await query<RawReviewRow>(
+      `SELECT v.id, v.youtube_id, v.title, v.thumbnail_url, v.duration_seconds,
+              v.relevance_score, v.relevance_reason, v.content_type,
+              c.name AS channel_name,
+              (SELECT count(*) FROM segments s WHERE s.video_id = v.id) AS segment_count
+       FROM videos v
+       JOIN channels c ON c.id = v.channel_id
+       WHERE v.review_status = 'approved'
+         AND c.official_status = 'community'
+       ORDER BY v.created_at DESC
+       LIMIT 200`
+    );
+  } catch (error) {
+    console.error('Review queue fetch failed:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
   // Pull user-feedback totals for these videos and index them by video_id.
   const ids = rows.map((v) => v.id);
   const feedbackByVideo = new Map<number, { positive: number; negative: number }>();
   if (ids.length > 0) {
-    const { data: stats, error: statsError } = await supabase
-      .from('video_feedback_stats')
-      .select('video_id, positive_count, negative_count')
-      .in('video_id', ids);
-    if (statsError) {
-      console.error('Feedback stats fetch failed:', statsError);
-    } else {
-      for (const s of (stats ?? []) as { video_id: number; positive_count: number; negative_count: number }[]) {
+    try {
+      const stats = await query<{ video_id: number; positive_count: number; negative_count: number }>(
+        `SELECT video_id, positive_count, negative_count
+         FROM video_feedback_stats
+         WHERE video_id = ANY($1::bigint[])`,
+        [ids]
+      );
+      for (const s of stats) {
         feedbackByVideo.set(s.video_id, {
           positive: Number(s.positive_count) || 0,
           negative: Number(s.negative_count) || 0,
         });
       }
+    } catch (statsError) {
+      console.error('Feedback stats fetch failed:', statsError);
     }
   }
 
@@ -87,8 +89,8 @@ export async function GET() {
     relevance_score: v.relevance_score,
     relevance_reason: v.relevance_reason,
     content_type: v.content_type,
-    channel_name: v.channels?.name ?? null,
-    segment_count: v.segments?.[0]?.count ?? 0,
+    channel_name: v.channel_name,
+    segment_count: v.segment_count,
     positive_count: feedbackByVideo.get(v.id)?.positive ?? 0,
     negative_count: feedbackByVideo.get(v.id)?.negative ?? 0,
   }));
@@ -117,15 +119,12 @@ export async function POST(request: NextRequest) {
 
   const review_status = action === 'approve' ? 'approved' : 'rejected';
 
-  const { error } = await getSupabaseAdmin()
-    .from('videos')
-    // @ts-expect-error - review_status update on loosely-inferred admin client
-    .update({ review_status })
-    .eq('id', videoId);
-
-  if (error) {
+  try {
+    await query('UPDATE videos SET review_status = $2 WHERE id = $1', [videoId, review_status]);
+  } catch (error) {
     console.error('Review update failed:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, videoId, review_status });

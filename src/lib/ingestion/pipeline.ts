@@ -8,7 +8,7 @@ import { chunkTranscript } from '@/lib/ingestion/chunker';
 import { generateEmbeddings, validateEmbedding } from '@/lib/openai/embeddings';
 import { generateSummaries } from '@/lib/openai/summaries';
 import { gateVideo } from '@/lib/ingestion/relevance-gate';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { query, queryOne, toVector } from '@/lib/db';
 
 /**
  * Result of video ingestion attempt
@@ -58,59 +58,62 @@ export async function ingestVideo(
 
     // Upsert channel (check if exists first to avoid duplicate API calls)
     let channelDbId: number;
-    const { data: existingChannel } = await getSupabaseAdmin()
-      .from('channels')
-      .select('id')
-      .eq('youtube_id', metadata.channelId)
-      .maybeSingle();
+    const existingChannel = await queryOne<{ id: number }>(
+      'SELECT id FROM channels WHERE youtube_id = $1',
+      [metadata.channelId]
+    );
 
     if (existingChannel) {
-      // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
       channelDbId = existingChannel.id;
     } else {
       // Fetch channel metadata and classify as official/community
       const channelMeta = await fetchChannelMetadata(metadata.channelId);
-      const { data: newChannel, error: channelError } = await getSupabaseAdmin()
-        .from('channels')
-        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-        .insert({
-          youtube_id: channelMeta.channelId,
-          name: channelMeta.name,
-          description: channelMeta.description,
-          thumbnail_url: channelMeta.thumbnailUrl,
-          official_status: classifyChannel(channelMeta.name),
-        })
-        .select('id')
-        .single();
+      const newChannel = await queryOne<{ id: number }>(
+        `INSERT INTO channels (youtube_id, name, description, thumbnail_url, official_status)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        [
+          channelMeta.channelId,
+          channelMeta.name,
+          channelMeta.description,
+          channelMeta.thumbnailUrl,
+          classifyChannel(channelMeta.name),
+        ]
+      );
 
-      if (channelError || !newChannel) throw channelError || new Error('Failed to create channel');
-      // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
+      if (!newChannel) throw new Error('Failed to create channel');
       channelDbId = newChannel.id;
     }
 
     // Upsert video with has_transcript: false initially
-    // Use onConflict for idempotent re-ingestion
-    const { data: video, error: videoError } = await getSupabaseAdmin()
-      .from('videos')
-      // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-      .upsert(
-        {
-          youtube_id: videoId,
-          channel_id: channelDbId,
-          title: metadata.title,
-          description: metadata.description,
-          thumbnail_url: metadata.thumbnailUrl,
-          duration_seconds: metadata.durationSeconds,
-          published_at: metadata.publishedAt,
-          has_transcript: false,
-          review_status: reviewStatus,
-        },
-        { onConflict: 'youtube_id' }
-      )
-      .select('id')
-      .single();
+    // ON CONFLICT for idempotent re-ingestion
+    const video = await queryOne<{ id: number }>(
+      `INSERT INTO videos (youtube_id, channel_id, title, description, thumbnail_url,
+                           duration_seconds, published_at, has_transcript, review_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8)
+       ON CONFLICT (youtube_id) DO UPDATE SET
+         channel_id = EXCLUDED.channel_id,
+         title = EXCLUDED.title,
+         description = EXCLUDED.description,
+         thumbnail_url = EXCLUDED.thumbnail_url,
+         duration_seconds = EXCLUDED.duration_seconds,
+         published_at = EXCLUDED.published_at,
+         has_transcript = EXCLUDED.has_transcript,
+         review_status = EXCLUDED.review_status
+       RETURNING id`,
+      [
+        videoId,
+        channelDbId,
+        metadata.title,
+        metadata.description,
+        metadata.thumbnailUrl,
+        metadata.durationSeconds,
+        metadata.publishedAt,
+        reviewStatus,
+      ]
+    );
 
-    if (videoError || !video) throw videoError || new Error('Failed to upsert video');
+    if (!video) throw new Error('Failed to upsert video');
 
     // Fetch transcript (German first, then English fallback)
     const transcriptResult = await fetchVideoTranscript(videoId);
@@ -118,18 +121,15 @@ export async function ingestVideo(
     if (!transcriptResult.available) {
       // Transcript unavailable → not searchable. Mark not-approved so it isn't
       // counted as a live video or listed for review.
-      await getSupabaseAdmin()
-        .from('videos')
-        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-        .update({ review_status: 'rejected', relevance_reason: 'Kein DE/EN-Transkript verfügbar' })
-        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-        .eq('id', video.id);
+      await query(
+        `UPDATE videos SET review_status = 'rejected', relevance_reason = $2 WHERE id = $1`,
+        [video.id, 'Kein DE/EN-Transkript verfügbar']
+      );
       return {
         videoId,
         status: 'no_transcript',
         segmentCount: 0,
         channelId: channelDbId,
-        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
         videoDbId: video.id,
       };
     }
@@ -153,74 +153,53 @@ export async function ingestVideo(
       gateContentType = gate.contentType;
 
       if (!gate.relevant) {
-        await getSupabaseAdmin()
-          .from('videos')
-          // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-          .update({
-            review_status: 'rejected',
-            relevance_score: gate.score,
-            relevance_reason: gate.reason,
-            content_type: gate.contentType,
-            has_transcript: false,
-          })
-          // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-          .eq('id', video.id);
+        await query(
+          `UPDATE videos
+           SET review_status = 'rejected', relevance_score = $2, relevance_reason = $3,
+               content_type = $4, has_transcript = false
+           WHERE id = $1`,
+          [video.id, gate.score, gate.reason, gate.contentType]
+        );
 
         return {
           videoId,
           status: 'rejected_irrelevant',
           segmentCount: 0,
           channelId: channelDbId,
-          // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
           videoDbId: video.id,
         };
       }
     }
 
     // Delete old transcripts (cascades to segments) for idempotent re-ingestion
-    // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-    await getSupabaseAdmin().from('transcripts').delete().eq('video_id', video.id);
+    await query('DELETE FROM transcripts WHERE video_id = $1', [video.id]);
 
     // Store transcript in database
-    const { data: transcript, error: transcriptError } = await getSupabaseAdmin()
-      .from('transcripts')
-      // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-      .insert({
-        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-        video_id: video.id,
-        full_text: fullText,
-        language: transcriptResult.language,
-        source_type: transcriptResult.source,
-      })
-      .select('id')
-      .single();
+    const transcript = await queryOne<{ id: number }>(
+      `INSERT INTO transcripts (video_id, full_text, language, source_type)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
+      [video.id, fullText, transcriptResult.language, transcriptResult.source]
+    );
 
-    if (transcriptError || !transcript) throw transcriptError || new Error('Failed to insert transcript');
+    if (!transcript) throw new Error('Failed to insert transcript');
 
     // Update video.has_transcript flag
-    await getSupabaseAdmin()
-      .from('videos')
-      // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-      .update({ has_transcript: true })
-      // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-      .eq('id', video.id);
+    await query('UPDATE videos SET has_transcript = true WHERE id = $1', [video.id]);
 
     // Chunk transcript into non-overlapping segments of roughly one minute
     const chunks = chunkTranscript(transcriptResult.segments);
     if (chunks.length === 0) {
       // Empty transcript - treat as unavailable (and not approved/searchable).
-      await getSupabaseAdmin()
-        .from('videos')
-        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-        .update({ review_status: 'rejected', relevance_reason: 'Leeres Transkript' })
-        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-        .eq('id', video.id);
+      await query(
+        `UPDATE videos SET review_status = 'rejected', relevance_reason = $2 WHERE id = $1`,
+        [video.id, 'Leeres Transkript']
+      );
       return {
         videoId,
         status: 'no_transcript',
         segmentCount: 0,
         channelId: channelDbId,
-        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
         videoDbId: video.id,
       };
     }
@@ -241,39 +220,32 @@ export async function ingestVideo(
       }
     }
 
-    // Store segments with embeddings in database
-    const segmentRecords = chunks.map((chunk, index) => ({
-      // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-      video_id: video.id,
-      // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-      transcript_id: transcript.id,
-      text: chunk.text,
-      summary: summaries[index] || null,
-      start_time: chunk.startTime,
-      end_time: chunk.endTime,
-      embedding: embeddings[index],
-    }));
-
-    const { error: segmentError } = await getSupabaseAdmin()
-      .from('segments')
-      // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-      .insert(segmentRecords);
-
-    if (segmentError) throw segmentError;
+    // Store segments with embeddings in one statement: one array per column,
+    // expanded row-wise by unnest.
+    await query(
+      `INSERT INTO segments (video_id, transcript_id, text, summary, start_time, end_time, embedding)
+       SELECT $1, $2, t.text, t.summary, t.start_time, t.end_time, t.embedding::vector
+       FROM unnest($3::text[], $4::text[], $5::float8[], $6::float8[], $7::text[])
+         AS t(text, summary, start_time, end_time, embedding)`,
+      [
+        video.id,
+        transcript.id,
+        chunks.map((chunk) => chunk.text),
+        chunks.map((_, index) => summaries[index] || null),
+        chunks.map((chunk) => chunk.startTime),
+        chunks.map((chunk) => chunk.endTime),
+        embeddings.map(toVector),
+      ]
+    );
 
     // Persist the gate verdict on the (now ingested) video for the reviewer.
     // review_status keeps the value set at upsert (e.g. 'pending').
     if (options.gate) {
-      await getSupabaseAdmin()
-        .from('videos')
-        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-        .update({
-          relevance_score: gateScore,
-          relevance_reason: gateReason,
-          content_type: gateContentType,
-        })
-        // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
-        .eq('id', video.id);
+      await query(
+        `UPDATE videos SET relevance_score = $2, relevance_reason = $3, content_type = $4
+         WHERE id = $1`,
+        [video.id, gateScore, gateReason, gateContentType]
+      );
     }
 
     // Success - return result with counts
@@ -282,7 +254,6 @@ export async function ingestVideo(
       status: 'success',
       segmentCount: chunks.length,
       channelId: channelDbId,
-      // @ts-expect-error - Supabase types not fully inferring through getSupabaseAdmin()
       videoDbId: video.id,
     };
   } catch (error) {

@@ -1,6 +1,6 @@
 import 'server-only';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
-import { HybridSearchResult } from '@/lib/supabase/types';
+import { query } from '@/lib/db';
+import { HybridSearchResult } from '@/lib/db/types';
 import { SearchResultSegment, OfficialStatus } from '@/types/search';
 import { generateSummaries } from '@/lib/openai/summaries';
 
@@ -22,14 +22,12 @@ export async function enrichSearchResults(
   const segmentIds = segments.map((seg) => seg.id);
 
   // Fetch summaries for matched segments
-  const { data: segmentSummaries } = await getSupabaseAdmin()
-    .from('segments')
-    .select('id, summary')
-    .in('id', segmentIds);
-
-  const summaryMap = new Map(
-    (segmentSummaries || []).map((s: { id: number; summary: string | null }) => [s.id, s.summary])
+  const segmentSummaries = await query<{ id: number; summary: string | null }>(
+    'SELECT id, summary FROM segments WHERE id = ANY($1::bigint[])',
+    [segmentIds]
   );
+
+  const summaryMap = new Map(segmentSummaries.map((s) => [s.id, s.summary]));
 
   // Find segments missing summaries and generate them
   const missingSummarySegs = segments.filter((seg) => !summaryMap.get(seg.id));
@@ -40,46 +38,39 @@ export async function enrichSearchResults(
       const summary = newSummaries[i];
       if (summary) {
         summaryMap.set(missingSummarySegs[i].id, summary);
-        getSupabaseAdmin()
-          .from('segments')
-          // @ts-expect-error - Supabase types not fully inferring
-          .update({ summary })
-          .eq('id', missingSummarySegs[i].id)
-          .then();
+        query('UPDATE segments SET summary = $2 WHERE id = $1', [missingSummarySegs[i].id, summary])
+          .catch((err) => console.error('Caching segment summary failed:', err));
       }
     }
   }
 
-  // Fetch videos with channels data in single query
-  const { data: videos } = await getSupabaseAdmin()
-    .from('videos')
-    .select(`
-      id,
-      youtube_id,
-      title,
-      description,
-      thumbnail_url,
-      duration_seconds,
-      has_transcript,
-      channels (
-        name,
-        official_status
-      )
-    `)
-    .in('id', videoIds);
+  // Fetch videos with channel data in single query
+  const videos = await query<{
+    id: number;
+    youtube_id: string;
+    title: string;
+    description: string | null;
+    thumbnail_url: string | null;
+    duration_seconds: number | null;
+    has_transcript: boolean | null;
+    channel_name: string | null;
+    channel_official_status: string | null;
+  }>(
+    `SELECT v.id, v.youtube_id, v.title, v.description, v.thumbnail_url,
+            v.duration_seconds, v.has_transcript,
+            c.name AS channel_name, c.official_status AS channel_official_status
+     FROM videos v
+     LEFT JOIN channels c ON c.id = v.channel_id
+     WHERE v.id = ANY($1::bigint[])`,
+    [videoIds]
+  );
 
   // Build lookup map for O(1) access
-  const videoMap = new Map(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (videos || []).map((video: any) => [video.id, video])
-  );
+  const videoMap = new Map(videos.map((video) => [video.id, video]));
 
   // Map segments to enriched format
   return segments.map((seg) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const video: any = videoMap.get(seg.video_id);
-    // Supabase returns channels as array for join, but could be single object
-    const channel = video?.channels?.[0] || video?.channels;
+    const video = videoMap.get(seg.video_id);
 
     return {
       id: String(seg.id),
@@ -97,8 +88,8 @@ export async function enrichSearchResults(
       video_thumbnail_url: video?.thumbnail_url ?? '',
       video_duration_seconds: video?.duration_seconds ?? null,
       video_has_transcript: video?.has_transcript ?? false,
-      channel_name: channel?.name ?? 'Unknown',
-      channel_official_status: (channel?.official_status as OfficialStatus) ?? 'unknown',
+      channel_name: video?.channel_name ?? 'Unknown',
+      channel_official_status: (video?.channel_official_status as OfficialStatus) ?? 'unknown',
     };
   });
 }

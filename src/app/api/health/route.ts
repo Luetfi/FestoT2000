@@ -1,6 +1,6 @@
 // Health check endpoint - verifies all core services
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { query } from '@/lib/db';
 
 interface ServiceStatus {
   name: string;
@@ -12,26 +12,21 @@ interface ServiceStatus {
 export async function GET() {
   const services: ServiceStatus[] = [];
 
-  // Test Supabase connection
-  const supabaseStart = Date.now();
+  // Test database connection
+  const dbStart = Date.now();
   try {
-    const { error } = await supabaseAdmin
-      .from('channels')
-      .select('id')
-      .limit(1);
-
-    if (error) throw error;
+    await query('SELECT id FROM channels LIMIT 1');
 
     services.push({
-      name: 'supabase',
+      name: 'database',
       status: 'ok',
-      latency_ms: Date.now() - supabaseStart,
+      latency_ms: Date.now() - dbStart,
     });
   } catch (err) {
     services.push({
-      name: 'supabase',
+      name: 'database',
       status: 'error',
-      latency_ms: Date.now() - supabaseStart,
+      latency_ms: Date.now() - dbStart,
       error: err instanceof Error ? err.message : 'Unknown error',
     });
   }

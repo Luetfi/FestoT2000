@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { FeedbackType } from '@/lib/supabase/types';
+import type { FeedbackType } from '@/lib/db/types';
 
 export const FEEDBACK_REASONS = [
   'not_relevant',

@@ -7,11 +7,11 @@ Semantische Videosuche für Festo Service-Techniker und Inbetriebnahme-Ingenieur
 ## Tech Stack
 
 - **Frontend:** Next.js 16 (App Router), React 19, Tailwind CSS 4, shadcn/ui
-- **Datenbank:** Supabase PostgreSQL mit pgvector (HNSW-Index)
+- **Datenbank:** PostgreSQL 17 mit pgvector (HNSW-Index), Zugriff über `pg`
 - **KI/Embeddings:** OpenAI `text-embedding-3-small` (1536 Dimensionen)
 - **Suche:** Hybrid-Suche (BM25 + Vektor-Ähnlichkeit) mit Reciprocal Rank Fusion
-- **APIs:** YouTube Data API v3, Upstash Redis (Rate Limiting)
-- **Deployment:** Vercel
+- **APIs:** YouTube Data API v3
+- **Deployment:** Docker-Image (Next.js standalone)
 
 ## Features
 
@@ -21,16 +21,14 @@ Semantische Videosuche für Festo Service-Techniker und Inbetriebnahme-Ingenieur
 - **Video-Segmentierung** — 30–60 Sekunden Segmente mit 15% Überlappung für präzise Treffer
 - **Antwort-Panel** — KI-generierte Segment-Erklärungen
 - **Dark Mode** — Umschaltbar über Theme-Toggle
-- **Rate Limiting** — 10 Anfragen / 10 Sekunden pro IP
 - **Login Gate** — Optionaler Passwortschutz
 
 ## Voraussetzungen
 
-- Node.js 18+
-- [Supabase](https://supabase.com)-Projekt mit pgvector-Extension
+- Node.js 20.9+
+- Docker (für die lokale Datenbank und das Produktions-Image)
 - [OpenAI](https://platform.openai.com) API Key
 - [YouTube Data API](https://console.cloud.google.com) Key
-- [Upstash Redis](https://upstash.com) (für Rate Limiting)
 
 ## Setup
 
@@ -52,13 +50,9 @@ Die Datei `.env.local` ausfüllen:
 
 | Variable | Beschreibung |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase Projekt-URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase Anon Key |
-| `SUPABASE_SERVICE_ROLE_SECRET` | Supabase Service Role Key |
+| `DATABASE_URL` | PostgreSQL-Verbindung (`postgresql://user:passwort@host:port/db`) |
 | `OPENAI_API_KEY` | OpenAI API Key |
 | `YOUTUBE_API_KEY` | YouTube Data API Key |
-| `UPSTASH_REDIS_REST_URL` | Upstash Redis URL |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis Token |
 | `INGESTION_SECRET` | Secret für Ingestion-Endpunkte |
 | `CRON_SECRET` | Secret für Cron-Jobs |
 | `AUTH_USERNAME` | Login-Benutzername |
@@ -69,18 +63,26 @@ Optional:
 
 | Variable | Beschreibung |
 |---|---|
+| `DATABASE_SSL_CA` | Pfad zu einem CA-Bündel: verschlüsselte Verbindung mit Zertifikatsprüfung (Amazon RDS) |
+| `DATABASE_SSL` | `require`: verschlüsselt ohne Zertifikatsprüfung |
 | `CHANNEL_ALLOWLIST` | Kommagetrennte Kanal-Namen (als offiziell markiert) |
 | `CHANNEL_BLOCKLIST` | Kommagetrennte Kanal-Namen (blockiert) |
 
 ### 3. Datenbank einrichten
 
-Supabase-Migrationen anwenden:
+Lokal läuft PostgreSQL 17 mit pgvector als Docker-Container (Port 55433, nur auf localhost erreichbar):
 
 ```bash
-supabase migration up
+docker run -d --name festo-video-search-db -e POSTGRES_USER=festo -e POSTGRES_PASSWORD=<passwort> -e POSTGRES_DB=festo_video_search -p 127.0.0.1:55433:5432 -v festo-video-search-pgdata:/var/lib/postgresql/data pgvector/pgvector:pg17
 ```
 
-Die Migrationen erstellen das Schema (Channels → Videos → Transcripts → Segments), aktivieren pgvector, und legen die Hybrid-Search-Funktion an.
+Schema einspielen:
+
+```bash
+docker exec -i festo-video-search-db psql -U festo -d festo_video_search -v ON_ERROR_STOP=1 < db/schema.sql
+```
+
+`db/schema.sql` erstellt die Tabellen (Channels → Videos → Transcripts → Segments, Feedback, Suchprotokoll), aktiviert pgvector und legt die Suchfunktionen an. Es fasst den Endstand der früheren Supabase-Migrationen unter `supabase/migrations/` zusammen, die als Historie erhalten bleiben.
 
 ### 4. Entwicklungsserver starten
 
@@ -128,8 +130,21 @@ YouTube Video
   → Transkript laden (DE → EN Fallback)
   → In 30–60s Segmente aufteilen (15% Überlappung)
   → Embeddings generieren (OpenAI)
-  → In Supabase speichern (pgvector)
+  → In PostgreSQL speichern (pgvector)
 ```
+
+## Betrieb mit Docker
+
+Für den Serverbetrieb baut das `Dockerfile` ein eigenständiges Image (Next.js `standalone`):
+
+```bash
+docker build -t festo-video-search .
+docker run -d -p 3000:3000 --env-file .env.production festo-video-search
+```
+
+Die Konfiguration kommt vollständig aus Umgebungsvariablen (Vorlage: `.env.local.example`). Für Amazon RDS `DATABASE_SSL_CA=/app/certs/rds-global-bundle.pem` setzen, das Zertifikatsbündel ist im Image enthalten. Das Login-Cookie wird im Produktionsbetrieb nur über HTTPS gesendet, die App gehört also hinter einen HTTPS-Endpunkt.
+
+Der tägliche Kanal-Abgleich (früher Vercel Cron, `vercel.json`) braucht einen externen Zeitplaner, der `/api/cron/sync-channels` mit `Authorization: Bearer $CRON_SECRET` aufruft.
 
 ## Scripts
 
@@ -157,7 +172,7 @@ src/
 │   ├── ingestion/           # Pipeline, Chunker, Seed-Queries
 │   ├── openai/              # Embeddings & Summaries
 │   ├── youtube/             # YouTube API Client, Transkripte
-│   ├── supabase/            # DB-Clients & Typen
+│   ├── db/                  # PostgreSQL-Zugriff & Typen
 │   └── dictionaries/        # i18n (de.json, en.json)
 ├── components/
 │   ├── search/              # Suchfeld, Quick-Filter
@@ -166,8 +181,11 @@ src/
 │   └── ui/                  # shadcn/ui Basis-Komponenten
 └── types/                   # TypeScript-Typen
 
+db/
+└── schema.sql               # Datenbank-Schema (PostgreSQL + pgvector)
+
 supabase/
-└── migrations/              # Datenbank-Schema (5 Migrationen)
+└── migrations/              # Frühere Supabase-Migrationen (Historie)
 ```
 
 ## Architektur

@@ -1,5 +1,5 @@
-// Database types for Supabase
-// These types match the schema in supabase/migrations/001_initial_schema.sql
+// Database row types
+// These types match the schema in db/schema.sql
 
 export type OfficialStatus = 'official' | 'community' | 'unknown';
 export type SourceType = 'manual' | 'auto' | 'unknown';
@@ -99,89 +99,6 @@ export interface QueryGap {
   avg_results: number | null;
   best_confidence_seen: number | null;
   last_searched_at: string | null;
-}
-
-// Supabase Database type for generic client
-export interface Database {
-  public: {
-    Tables: {
-      channels: {
-        Row: Channel;
-        Insert: Omit<Channel, 'id' | 'created_at' | 'updated_at'> & { id?: number };
-        Update: Partial<Omit<Channel, 'id' | 'created_at' | 'updated_at'>>;
-      };
-      videos: {
-        Row: Video;
-        Insert: Omit<Video, 'id' | 'created_at' | 'updated_at'> & { id?: number };
-        Update: Partial<Omit<Video, 'id' | 'created_at' | 'updated_at'>>;
-      };
-      transcripts: {
-        Row: Transcript;
-        Insert: Omit<Transcript, 'id' | 'created_at'> & { id?: number };
-        Update: Partial<Omit<Transcript, 'id' | 'created_at'>>;
-      };
-      segments: {
-        Row: Segment;
-        Insert: Omit<Segment, 'id' | 'created_at'> & { id?: number };
-        Update: Partial<Omit<Segment, 'id' | 'created_at'>>;
-      };
-      video_feedback: {
-        Row: VideoFeedback;
-        Insert: Omit<VideoFeedback, 'id' | 'created_at'> & { id?: number };
-        Update: Partial<Omit<VideoFeedback, 'id' | 'created_at'>>;
-      };
-      query_log: {
-        Row: QueryLog;
-        Insert: Omit<QueryLog, 'id' | 'normalized_query' | 'created_at'> & { id?: number };
-        Update: Partial<Omit<QueryLog, 'id' | 'normalized_query' | 'created_at'>>;
-      };
-    };
-    Views: {
-      video_feedback_stats: {
-        Row: VideoFeedbackStats;
-      };
-      query_gaps: {
-        Row: QueryGap;
-      };
-    };
-    Functions: {
-      search_segments: {
-        Args: {
-          query_embedding: number[];
-          match_threshold?: number;
-          match_count?: number;
-        };
-        Returns: {
-          id: number;
-          video_id: number;
-          text: string;
-          start_time: number;
-          end_time: number;
-          similarity: number;
-        }[];
-      };
-      hybrid_search_segments: {
-        Args: {
-          query_text: string;
-          query_embedding: number[];
-          match_count?: number;
-          full_text_weight?: number;
-          semantic_weight?: number;
-          rrf_k?: number;
-        };
-        Returns: {
-          id: number;
-          video_id: number;
-          text: string;
-          start_time: number;
-          end_time: number;
-          rrf_score: number;
-          semantic_similarity: number;
-          full_text_match: boolean;
-        }[];
-      };
-    };
-  };
 }
 
 // Helper type for search results

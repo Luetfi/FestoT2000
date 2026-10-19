@@ -3,7 +3,7 @@
 // so one visitor can't overwrite another's answer.
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { query } from '@/lib/db';
 import { FB_COOKIE_NAME } from '@/lib/feedback/session';
 
 export async function PATCH(request: NextRequest) {
@@ -28,16 +28,16 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'No feedback session' }, { status: 400 });
   }
 
-  const { error } = await getSupabaseAdmin()
-    .from('query_log')
-    // @ts-expect-error - update on loosely-inferred admin client
-    .update({ was_solved: wasSolved })
-    .eq('id', queryLogId)
-    .eq('session_id', sessionId);
-
-  if (error) {
+  try {
+    await query('UPDATE query_log SET was_solved = $3 WHERE id = $1 AND session_id = $2', [
+      queryLogId,
+      sessionId,
+      wasSolved,
+    ]);
+  } catch (error) {
     console.error('Query outcome update failed:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

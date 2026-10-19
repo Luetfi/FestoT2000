@@ -12,7 +12,7 @@
 // und allein danach, ob der Ausschnitt selbst die Frage beantwortet.
 import 'server-only';
 import OpenAI from 'openai';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { query as dbQuery, toVector } from '@/lib/db';
 import type { SearchResultSegment } from '@/types/search';
 
 let _openai: OpenAI | null = null;
@@ -97,16 +97,15 @@ async function loadSegments(
   videoIds: number[],
   queryEmbedding: number[]
 ): Promise<VideoSegmentRow[]> {
-  const { data, error } = await getSupabaseAdmin().rpc(
-    'segments_for_videos' as never,
-    { video_ids: videoIds, query_embedding: queryEmbedding } as never
-  );
-
-  if (error) {
+  try {
+    return await dbQuery<VideoSegmentRow>(
+      'SELECT * FROM segments_for_videos($1::bigint[], $2::vector)',
+      [videoIds, toVector(queryEmbedding)]
+    );
+  } catch (error) {
     console.error('segments_for_videos failed:', error);
     return [];
   }
-  return (data ?? []) as unknown as VideoSegmentRow[];
 }
 
 /**

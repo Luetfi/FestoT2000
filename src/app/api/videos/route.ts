@@ -1,49 +1,31 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { query } from '@/lib/db';
 
 export async function GET() {
   try {
-    const supabase = getSupabaseAdmin();
+    const rows = await query<{
+      id: number;
+      youtube_id: string;
+      title: string;
+      description: string | null;
+      thumbnail_url: string | null;
+      duration_seconds: number | null;
+      channel_name: string | null;
+      channel_official_status: string | null;
+    }>(
+      `SELECT v.id, v.youtube_id, v.title, v.description, v.thumbnail_url, v.duration_seconds,
+              c.name AS channel_name, c.official_status AS channel_official_status
+       FROM videos v
+       LEFT JOIN channels c ON c.id = v.channel_id
+       ORDER BY v.published_at DESC`
+    );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error }: { data: any[] | null; error: any } = await supabase
-      .from('videos')
-      .select(`
-        id,
-        youtube_id,
-        title,
-        description,
-        thumbnail_url,
-        duration_seconds,
-        channels (
-          name,
-          official_status
-        )
-      `)
-      .order('published_at', { ascending: false });
-
-    if (error) {
-      console.error('Videos fetch error:', error);
-      return NextResponse.json(
-        { error: `Failed to fetch videos: ${error.message}` },
-        { status: 500 }
-      );
-    }
-
-    const videos = (data || []).map((video) => {
-      const channel = video.channels?.[0] || video.channels;
-      return {
-        id: video.id,
-        youtube_id: video.youtube_id,
-        title: video.title,
-        description: video.description,
-        thumbnail_url: video.thumbnail_url,
-        duration_seconds: video.duration_seconds,
-        channel_name: channel?.name ?? 'Unknown',
-        channel_official_status: channel?.official_status ?? 'unknown',
-      };
-    });
+    const videos = rows.map((video) => ({
+      ...video,
+      channel_name: video.channel_name ?? 'Unknown',
+      channel_official_status: video.channel_official_status ?? 'unknown',
+    }));
 
     return NextResponse.json({ videos });
   } catch (error) {

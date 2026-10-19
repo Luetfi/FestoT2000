@@ -4,25 +4,24 @@
 // Protected by the session cookie via middleware, like /api/admin/review.
 import 'server-only';
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
-import type { QueryGap } from '@/lib/supabase/types';
+import { query } from '@/lib/db';
+import type { QueryGap } from '@/lib/db/types';
 
 export type GapRow = QueryGap;
 
 export async function GET() {
-  const { data, error } = await getSupabaseAdmin()
-    .from('query_gaps')
-    .select('*')
-    .limit(200);
-
-  if (error) {
+  let data: GapRow[];
+  try {
+    data = await query<GapRow>('SELECT * FROM query_gaps LIMIT 200');
+  } catch (error) {
     console.error('Gaps fetch failed:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   // Rank by how badly the query is uncovered: explicit "unsolved" answers and
   // zero-result searches weigh most, then overall search volume as a tiebreaker.
-  const gaps = ((data ?? []) as GapRow[])
+  const gaps = data
     .slice()
     .sort((a, b) => {
       const aScore = a.unsolved_count + a.zero_result_count;

@@ -1,7 +1,7 @@
 import 'server-only';
 import { notFound } from 'next/navigation';
 import { VideoDetailClient } from '@/components/video/video-detail-client';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { query, queryOne } from '@/lib/db';
 import { getDictionary, isValidLocale, defaultLocale } from '@/lib/dictionaries/get-dictionary';
 import { generateSummaries } from '@/lib/openai/summaries';
 import type { OfficialStatus } from '@/types/search';
@@ -23,43 +23,47 @@ export default async function VideoPage({ params, searchParams }: VideoPageProps
     notFound();
   }
 
-  const supabase = getSupabaseAdmin();
-
   // Load video with channel data
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: video }: { data: any } = await supabase
-    .from('videos')
-    .select(`
-      id,
-      youtube_id,
-      title,
-      description,
-      thumbnail_url,
-      duration_seconds,
-      has_transcript,
-      channels (
-        name,
-        official_status
-      )
-    `)
-    .eq('id', videoId)
-    .single();
+  const video = await queryOne<{
+    id: number;
+    youtube_id: string;
+    title: string;
+    description: string | null;
+    thumbnail_url: string | null;
+    duration_seconds: number | null;
+    has_transcript: boolean | null;
+    channel_name: string | null;
+    channel_official_status: string | null;
+  }>(
+    `SELECT v.id, v.youtube_id, v.title, v.description, v.thumbnail_url,
+            v.duration_seconds, v.has_transcript,
+            c.name AS channel_name, c.official_status AS channel_official_status
+     FROM videos v
+     LEFT JOIN channels c ON c.id = v.channel_id
+     WHERE v.id = $1`,
+    [videoId]
+  );
 
   if (!video) {
     notFound();
   }
 
-  const channel = video.channels?.[0] || video.channels;
-
   // Load ALL segments for this video
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: segmentRows }: { data: any[] | null } = await supabase
-    .from('segments')
-    .select('id, text, summary, start_time, end_time')
-    .eq('video_id', videoId)
-    .order('start_time', { ascending: true });
+  const segmentRows = await query<{
+    id: number;
+    text: string;
+    summary: string | null;
+    start_time: number;
+    end_time: number;
+  }>(
+    `SELECT id, text, summary, start_time, end_time
+     FROM segments
+     WHERE video_id = $1
+     ORDER BY start_time ASC`,
+    [videoId]
+  );
 
-  let segments = (segmentRows || []).map((row: any) => ({
+  let segments = segmentRows.map((row) => ({
     id: String(row.id),
     text: row.text,
     summary: row.summary ?? null,
@@ -77,8 +81,10 @@ export default async function VideoPage({ params, searchParams }: VideoPageProps
       if (summary) {
         summaryMap.set(missingSummarySegs[i].id, summary);
         // Cache in DB (fire-and-forget)
-        // @ts-expect-error supabase generic inference
-        supabase.from('segments').update({ summary }).eq('id', parseInt(missingSummarySegs[i].id, 10));
+        query('UPDATE segments SET summary = $2 WHERE id = $1', [
+          parseInt(missingSummarySegs[i].id, 10),
+          summary,
+        ]).catch((err) => console.error('Caching segment summary failed:', err));
       }
     }
     segments = segments.map((s) => ({
@@ -98,8 +104,8 @@ export default async function VideoPage({ params, searchParams }: VideoPageProps
             videoDescription: video.description ?? null,
             videoDurationSeconds: video.duration_seconds ?? null,
             videoHasTranscript: video.has_transcript ?? false,
-            channelName: channel?.name ?? 'Unknown',
-            channelOfficialStatus: (channel?.official_status as OfficialStatus) ?? 'unknown',
+            channelName: video.channel_name ?? 'Unknown',
+            channelOfficialStatus: (video.channel_official_status as OfficialStatus) ?? 'unknown',
           }}
           videoId={videoId}
           segments={segments}
