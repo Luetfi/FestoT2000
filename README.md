@@ -144,7 +144,9 @@ docker run -d -p 3000:3000 --env-file .env.production festo-video-search
 
 Die Konfiguration kommt vollständig aus Umgebungsvariablen (Vorlage: `.env.local.example`). Für Amazon RDS `DATABASE_SSL_CA=/app/certs/rds-global-bundle.pem` setzen, das Zertifikatsbündel ist im Image enthalten. Das Login-Cookie wird im Produktionsbetrieb nur über HTTPS gesendet, die App gehört also hinter einen HTTPS-Endpunkt.
 
-Der tägliche Kanal-Abgleich (früher Vercel Cron, `vercel.json`) braucht einen externen Zeitplaner, der `/api/cron/sync-channels` mit `Authorization: Bearer $CRON_SECRET` aufruft.
+Ein automatischer Kanal-Abgleich ist optional: `deploy/install-sync-timer.sh` richtet auf dem Server einen systemd-Timer ein, der `/api/cron/sync-channels` täglich mit `Authorization: Bearer $CRON_SECRET` aufruft.
+
+Die Skripte unter `deploy/` (Konfiguration anlegen, Schema einspielen, Datenübernahme aus Supabase, Update) sind für den Betrieb auf einer EC2-Instanz mit Amazon Linux 2023 geschrieben.
 
 ## Scripts
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Richtet den taeglichen Kanal-Abgleich ein (frueher Vercel Cron, vercel.json):
+# Richtet einen taeglichen Kanal-Abgleich ein (optional):
 # Ein systemd-Timer ruft jede Nacht um 03:00 UTC /api/cron/sync-channels auf.
 # Verpasste Laeufe (Server war aus) werden beim naechsten Start nachgeholt.
 #
