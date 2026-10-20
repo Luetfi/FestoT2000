@@ -43,19 +43,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Supabase CLI temp files
-supabase/.temp/
-
-.vercel
-
 # editor settings
 .vscode/
 
 # documents
 *.docx
 
-# lokale Wegwerf-Skripte, Logs und Screenshots
-scripts/.*.mjs
-scripts/*.bak
-scripts/**/*.log
+# lokale Screenshots
 /image*.png

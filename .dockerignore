@@ -6,9 +6,6 @@ node_modules
 npm-debug.log*
 .env*
 !.env.local.example
-docs
-supabase
-scripts
 *.docx
 tsconfig.tsbuildinfo
 deploy

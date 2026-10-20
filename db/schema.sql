@@ -1,14 +1,12 @@
 -- Datenbankschema der Festo Video Search fuer ein normales PostgreSQL
 -- (lokal per Docker, in AWS als Amazon RDS for PostgreSQL).
 --
--- Fasst den Endstand von supabase/migrations/001-010 zusammen. Weggelassen ist
--- nur, was es ausserhalb von Supabase nicht gibt: Row Level Security mit den
--- Rollen anon/authenticated und die zugehoerigen GRANTs. Die App spricht die
--- Datenbank ausschliesslich serverseitig an, wie zuvor ueber den
--- Service-Role-Schluessel, der RLS ohnehin umging.
+-- Entspricht dem Endstand der frueheren Supabase-Datenbank, ohne die dort
+-- ueblichen Row-Level-Security-Regeln fuer die Rollen anon/authenticated. Die
+-- App spricht die Datenbank ausschliesslich serverseitig an.
 --
--- Die Suchfunktionen sind unveraendert aus 001, 009 und 010 uebernommen, damit
--- Messungen gegen dieses Schema dieselben Ergebnisse liefern wie gegen Supabase.
+-- Die Suchfunktionen sind unveraendert aus der Supabase-Fassung uebernommen,
+-- damit Messungen gegen dieses Schema dieselben Ergebnisse liefern.
 --
 -- Einspielen: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/schema.sql
 
@@ -132,7 +130,7 @@ CREATE TRIGGER videos_updated_at
   BEFORE UPDATE ON videos
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- Auswertungssichten fuer den Adminbereich (007) ------------------------------
+-- Auswertungssichten fuer den Adminbereich ------------------------------
 
 CREATE VIEW video_feedback_stats AS
 SELECT video_id,
@@ -157,7 +155,7 @@ HAVING count(*) FILTER (WHERE was_solved IS FALSE) > 0
     OR count(*) FILTER (WHERE result_count = 0)    > 0
     OR COALESCE(max(top_confidence), 0) < 60;
 
--- Reine Vektorsuche (001) -----------------------------------------------------
+-- Reine Vektorsuche -----------------------------------------------------
 
 CREATE OR REPLACE FUNCTION search_segments(
   query_embedding vector(1536),
@@ -191,7 +189,7 @@ BEGIN
 END;
 $$;
 
--- Segmente der Treffervideos fuer die Sprungstelle (009) ----------------------
+-- Segmente der Treffervideos fuer die Sprungstelle ----------------------
 
 CREATE OR REPLACE FUNCTION segments_for_videos(
   video_ids bigint[],
@@ -229,7 +227,7 @@ AS $$
   ORDER BY segments.video_id, segments.start_time;
 $$;
 
--- Hybride, mehrsprachige Suche (010) ------------------------------------------
+-- Hybride, mehrsprachige Suche ------------------------------------------
 
 CREATE OR REPLACE FUNCTION hybrid_search_segments(
   query_text text,

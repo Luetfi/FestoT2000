@@ -16,7 +16,7 @@ Semantische Videosuche für Festo Service-Techniker und Inbetriebnahme-Ingenieur
 ## Features
 
 - **Hybrid-Suche** — Kombiniert semantische Vektor-Suche mit Volltext-Suche (BM25) für optimale Ergebnisse
-- **Query Enhancement** — Automatische Erkennung von Fehlercodes (E123, E-7342) und Festo-Produkten (CPX, CMMT-AS, VTUG)
+- **KI-Bewertung** — Ein Sprachmodell bewertet die Treffer, wählt die Sprungstelle im Video und schlägt bei schwachen Ergebnissen bessere Suchbegriffe vor
 - **Zweisprachig** — Deutsch und Englisch (Transkripte + UI)
 - **Video-Segmentierung** — 30–60 Sekunden Segmente mit 15% Überlappung für präzise Treffer
 - **Antwort-Panel** — KI-generierte Segment-Erklärungen
@@ -82,7 +82,7 @@ Schema einspielen:
 docker exec -i festo-video-search-db psql -U festo -d festo_video_search -v ON_ERROR_STOP=1 < db/schema.sql
 ```
 
-`db/schema.sql` erstellt die Tabellen (Channels → Videos → Transcripts → Segments, Feedback, Suchprotokoll), aktiviert pgvector und legt die Suchfunktionen an. Es fasst den Endstand der früheren Supabase-Migrationen unter `supabase/migrations/` zusammen, die als Historie erhalten bleiben.
+`db/schema.sql` erstellt die Tabellen (Channels → Videos → Transcripts → Segments, Feedback, Suchprotokoll), aktiviert pgvector und legt die Suchfunktionen an.
 
 ### 4. Entwicklungsserver starten
 
@@ -144,9 +144,15 @@ docker run -d -p 3000:3000 --env-file .env.production festo-video-search
 
 Die Konfiguration kommt vollständig aus Umgebungsvariablen (Vorlage: `.env.local.example`). Für Amazon RDS `DATABASE_SSL_CA=/app/certs/rds-global-bundle.pem` setzen, das Zertifikatsbündel ist im Image enthalten. Das Login-Cookie wird im Produktionsbetrieb nur über HTTPS gesendet, die App gehört also hinter einen HTTPS-Endpunkt.
 
-Ein automatischer Kanal-Abgleich ist optional: `deploy/install-sync-timer.sh` richtet auf dem Server einen systemd-Timer ein, der `/api/cron/sync-channels` täglich mit `Authorization: Bearer $CRON_SECRET` aufruft.
+Auf dem Server (EC2, Amazon Linux 2023, Code unter `~/app`) übernehmen das die Skripte unter `deploy/`:
 
-Die Skripte unter `deploy/` (Konfiguration anlegen, Schema einspielen, Datenübernahme aus Supabase, Update) sind für den Betrieb auf einer EC2-Instanz mit Amazon Linux 2023 geschrieben.
+| Skript | Zweck |
+|---|---|
+| `deploy/create-env.sh` | Konfiguration `~/app.env` anlegen, Geheimnisse und Login-Passwörter werden erzeugt |
+| `deploy/init-db.sh` | `db/schema.sql` einmalig in die leere RDS-Datenbank einspielen |
+| `deploy/update.sh` | neuesten Stand von GitHub holen, Image bauen, App neu starten |
+
+Neue Kanalvideos holt `/api/cron/sync-channels` (Aufruf mit `Authorization: Bearer $CRON_SECRET`), ein Zeitplaner ist nicht eingerichtet.
 
 ## Scripts
 
@@ -177,7 +183,7 @@ src/
 │   ├── db/                  # PostgreSQL-Zugriff & Typen
 │   └── dictionaries/        # i18n (de.json, en.json)
 ├── components/
-│   ├── search/              # Suchfeld, Quick-Filter
+│   ├── search/              # Suchfeld, Suchvorschläge
 │   ├── results/             # Ergebnisliste, Ergebnis-Karten
 │   ├── video/               # YouTube-Player, Kapitel, Antwort-Panel
 │   └── ui/                  # shadcn/ui Basis-Komponenten
@@ -186,13 +192,8 @@ src/
 db/
 └── schema.sql               # Datenbank-Schema (PostgreSQL + pgvector)
 
-supabase/
-└── migrations/              # Frühere Supabase-Migrationen (Historie)
+deploy/                      # Betriebsskripte für den EC2-Server
 ```
-
-## Architektur
-
-Detaillierte Architektur-Dokumentation unter [`docs/architecture.md`](docs/architecture.md).
 
 ## Lizenz
 

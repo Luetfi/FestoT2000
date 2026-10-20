@@ -15,7 +15,7 @@
 // Deshalb wird die Anfrage zusaetzlich uebersetzt und mitgesucht. Die
 // Datenbankfunktion wertet je Segment den besseren Rang beider Fassungen, das
 // Ergebnis wird also breiter, ohne dass der semantische Zweig lauter wird
-// (siehe 010_multilingual_search.sql).
+// (siehe hybrid_search_segments in db/schema.sql).
 import 'server-only';
 import OpenAI from 'openai';
 

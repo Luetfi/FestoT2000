@@ -82,7 +82,7 @@ export interface QueryLog {
   created_at: string;
 }
 
-// Read-only aggregation views (see migration 007).
+// Read-only aggregation views (see db/schema.sql).
 export interface VideoFeedbackStats {
   video_id: number;
   positive_count: number;
