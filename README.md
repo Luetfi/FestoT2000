@@ -10,7 +10,7 @@ Semantische Videosuche für Festo Service-Techniker und Inbetriebnahme-Ingenieur
 - **Datenbank:** PostgreSQL 17 mit pgvector (HNSW-Index), Zugriff über `pg`
 - **KI/Embeddings:** OpenAI `text-embedding-3-small` (1536 Dimensionen)
 - **Suche:** Hybrid-Suche (BM25 + Vektor-Ähnlichkeit) mit Reciprocal Rank Fusion
-- **APIs:** YouTube Data API v3
+- **APIs:** YouTube Data API v3 (nur zum Einlesen neuer Videos)
 - **Deployment:** Docker-Image (Next.js standalone)
 
 ## Features
@@ -28,7 +28,7 @@ Semantische Videosuche für Festo Service-Techniker und Inbetriebnahme-Ingenieur
 - Node.js 20.9+
 - Docker (für die lokale Datenbank und das Produktions-Image)
 - [OpenAI](https://platform.openai.com) API Key
-- [YouTube Data API](https://console.cloud.google.com) Key
+- [YouTube Data API](https://console.cloud.google.com) Key (optional, nur zum Einlesen neuer Videos)
 
 ## Setup
 
@@ -52,7 +52,7 @@ Die Datei `.env.local` ausfüllen:
 |---|---|
 | `DATABASE_URL` | PostgreSQL-Verbindung (`postgresql://user:passwort@host:port/db`) |
 | `OPENAI_API_KEY` | OpenAI API Key |
-| `YOUTUBE_API_KEY` | YouTube Data API Key |
+| `YOUTUBE_API_KEY` | YouTube Data API Key, optional: nur zum Einlesen neuer Videos nötig |
 | `INGESTION_SECRET` | Secret für Ingestion-Endpunkte |
 | `CRON_SECRET` | Secret für Cron-Jobs |
 | `AUTH_USERNAME` | Login-Benutzername |

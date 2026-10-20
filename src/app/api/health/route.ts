@@ -31,9 +31,10 @@ export async function GET() {
     });
   }
 
-  // Check environment variables are set (don't call APIs here, just verify config)
+  // Check environment variables are set (don't call APIs here, just verify config).
+  // YOUTUBE_API_KEY is deliberately not checked: it is only needed to ingest new
+  // videos, which is optional - search runs without it.
   const envChecks = [
-    { name: 'youtube_api_key', envVar: 'YOUTUBE_API_KEY' },
     { name: 'openai_api_key', envVar: 'OPENAI_API_KEY' },
   ];
 
