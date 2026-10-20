@@ -33,6 +33,19 @@ ask() {
 echo "Supabase-Dashboard -> Connect -> Session pooler -> URI kopieren"
 echo "(beginnt mit postgresql://postgres.  und enthaelt [YOUR-PASSWORD])."
 SRC_TEMPLATE=$(ask "Supabase-URI" 0)
+# Eine doppelt eingefuegte URI ist nicht immer vollstaendig doppelt; alles ab
+# dem zweiten "postgresql://" wird verworfen.
+rest="${SRC_TEMPLATE#postgresql://}"
+if [[ "$rest" == *postgresql://* ]]; then
+  SRC_TEMPLATE="postgresql://${rest%%postgresql://*}"
+  echo "   -> URI doppelt eingefuegt, korrigiert auf ${#SRC_TEMPLATE} Zeichen"
+fi
+if [[ "$SRC_TEMPLATE" != postgresql://*\[YOUR-PASSWORD\]@*pooler.supabase.com:5432/postgres ]]; then
+  echo "Die URI sieht nicht nach dem Session Pooler aus:"
+  echo "  $SRC_TEMPLATE"
+  echo "Erwartet: postgresql://postgres.<projekt>:[YOUR-PASSWORD]@aws-...pooler.supabase.com:5432/postgres"
+  exit 1
+fi
 SRC_PASSWORD=$(ask "Supabase-Datenbankpasswort" 1)
 
 SRC_PASSWORD_ENC=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$SRC_PASSWORD")
@@ -60,8 +73,11 @@ for t in "${TABLES[@]}"; do
   SEQ_SQL="$SEQ_SQL SELECT setval(pg_get_serial_sequence('$t', 'id'), COALESCE((SELECT max(id) FROM $t), 0) + 1, false);"
 done
 
+# sudo setzt die Umgebung zurueck; die beiden Adressen muessen ausdruecklich
+# durchgereicht werden (statt als Argument, damit sie nicht in "ps" auftauchen).
 run() {
-  sudo docker run --rm -i -v "$CA_FILE:/ca.pem:ro" -e SRC_URL -e DST_URL postgres:17-alpine sh -c "$1"
+  sudo --preserve-env=SRC_URL,DST_URL docker run --rm -i -v "$CA_FILE:/ca.pem:ro" \
+    -e SRC_URL -e DST_URL postgres:17-alpine sh -c "$1"
 }
 export SRC_URL DST_URL
 
