@@ -14,10 +14,31 @@ if [ -e "$ENV_FILE" ]; then
   exit 1
 fi
 
-read -r -p "Datenbank-Endpunkt (z. B. festo-video-search-db.xxxx.eu-central-1.rds.amazonaws.com): " DB_HOST
-read -r -s -p "Datenbank-Passwort (Eingabe unsichtbar): " DB_PASSWORD; echo
-read -r -s -p "OpenAI-API-Key (Eingabe unsichtbar): " OPENAI_API_KEY; echo
-read -r -s -p "YouTube-API-Key (Eingabe unsichtbar): " YOUTUBE_API_KEY; echo
+# Das Browser-Terminal von EC2 Instance Connect fuegt Text je nach Einfuegeweg
+# doppelt ein. Eine Eingabe, die exakt aus zwei gleichen Haelften besteht, wird
+# deshalb auf eine Haelfte gekuerzt - bei echten Schluesseln kommt das nicht vor.
+# Ausgegeben wird nur die Laenge, nie der Inhalt.
+ask() {
+  local prompt="$1" secret="$2" value n
+  if [ "$secret" = 1 ]; then
+    read -r -s -p "$prompt (Eingabe unsichtbar): " value; echo >&2
+  else
+    read -r -p "$prompt: " value
+  fi
+  n=${#value}
+  if [ "$n" -gt 0 ] && [ $((n % 2)) -eq 0 ] && [ "${value:0:n/2}" = "${value:n/2}" ]; then
+    value="${value:0:n/2}"
+    echo "   -> doppelt eingefuegt, korrigiert auf ${#value} Zeichen" >&2
+  else
+    echo "   -> ${n} Zeichen" >&2
+  fi
+  printf '%s' "$value"
+}
+
+DB_HOST=$(ask "Datenbank-Endpunkt (z. B. festo-video-search-db.xxxx.eu-central-1.rds.amazonaws.com)" 0)
+DB_PASSWORD=$(ask "Datenbank-Passwort" 1)
+OPENAI_API_KEY=$(ask "OpenAI-API-Key" 1)
+YOUTUBE_API_KEY=$(ask "YouTube-API-Key" 1)
 
 # Sonderzeichen im Passwort duerfen die Verbindungs-URL nicht zerlegen.
 DB_PASSWORD_ENC=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$DB_PASSWORD")
