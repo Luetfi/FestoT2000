@@ -11,3 +11,4 @@ supabase
 scripts
 *.docx
 tsconfig.tsbuildinfo
+deploy
