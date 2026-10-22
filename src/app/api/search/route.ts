@@ -108,6 +108,11 @@ export async function GET(request: NextRequest) {
     // Falls back to the cosine similarity percentage if the judge is unavailable.
     const confidenceMap = await judgeRelevance(query, filtered);
     const judgeAvailable = confidenceMap.size > 0;
+    const sims = enriched.map((r) => r.semantic_similarity).filter((s) => s > 0);
+    console.log(
+      `[search] candidates=${enriched.length} afterFloor=${filtered.length} judge=${judgeAvailable}` +
+        ` similarity=${sims.length ? Math.min(...sims).toFixed(2) : '-'}..${sims.length ? Math.max(...sims).toFixed(2) : '-'}`
+    );
     const withConfidence = filtered.map((r) => ({
       ...r,
       confidence: confidenceMap.get(r.id) ?? Math.round(r.semantic_similarity * 100),

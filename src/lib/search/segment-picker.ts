@@ -125,7 +125,10 @@ ${JSON.stringify(items)}`;
       maxTokens: 4000,
       json: true,
     });
-    if (!raw) return scores;
+    if (!raw) {
+      console.warn('[picker] empty model answer');
+      return scores;
+    }
 
     const parsed = JSON.parse(raw) as { scores?: Array<{ id?: string; score?: number }> };
     for (const entry of parsed.scores ?? []) {
@@ -133,6 +136,10 @@ ${JSON.stringify(items)}`;
       const id = Number(entry.id);
       if (!Number.isFinite(id)) continue;
       scores.set(id, Math.max(0, Math.min(100, Math.round(entry.score))));
+    }
+    console.log(`[picker] ${scores.size}/${items.length} segments scored`);
+    if (scores.size === 0) {
+      console.warn(`[picker] no usable scores, model answer: ${raw.slice(0, 500)}`);
     }
   } catch (error) {
     console.error('Segment picker judge failed:', error);

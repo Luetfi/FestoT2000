@@ -64,13 +64,20 @@ ${JSON.stringify(items)}`;
       maxTokens: 4000,
       json: true,
     });
-    if (!raw) return result;
+    if (!raw) {
+      console.warn('[judge] empty model answer');
+      return result;
+    }
 
     const parsed = JSON.parse(raw) as { scores?: JudgeScore[] };
     for (const entry of parsed.scores ?? []) {
       if (entry?.id == null || typeof entry.score !== 'number') continue;
       const clamped = Math.max(0, Math.min(100, Math.round(entry.score)));
       result.set(String(entry.id), clamped);
+    }
+    console.log(`[judge] ${result.size}/${segments.length} segments scored`);
+    if (result.size === 0) {
+      console.warn(`[judge] no usable scores, model answer: ${raw.slice(0, 500)}`);
     }
   } catch (error) {
     console.error('Relevance judge failed:', error);
