@@ -48,7 +48,9 @@ else
 fi
 
 echo "5) Gegenprobe: Ist die Rolle eng genug? (soll abgelehnt werden)"
-if aws s3 ls >/dev/null 2>"$TMP"; then
+if [ -z "${ARN:-}" ]; then
+  echo "  --      uebersprungen, solange der Server keine Rolle hat (siehe 1)"
+elif aws s3 ls >/dev/null 2>"$TMP"; then
   echo "  HINWEIS Die Rolle darf auch S3 auflisten - mehr Rechte als noetig"
 else
   ok "S3 ist nicht erlaubt - die Rolle darf nur, was sie soll"
