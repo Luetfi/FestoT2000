@@ -2,12 +2,12 @@
 # Prueft, ob der Server Amazon Bedrock ueber seine IAM-Rolle nutzen kann.
 # Aendert nichts, ruft nur auf und meldet je Pruefung OK oder FEHLER.
 #
-#   bash ~/app/deploy/check-bedrock.sh [claude-inference-profile-id]
+#   bash ~/app/deploy/check-bedrock.sh [chat-inference-profile-id]
 set -uo pipefail
 
 REGION=eu-central-1
 EMBED_MODEL=amazon.titan-embed-text-v2:0
-CHAT_MODEL="${1:-eu.anthropic.claude-haiku-4-5-20251001-v1:0}"
+CHAT_MODEL="${1:-eu.amazon.nova-2-lite-v1:0}"
 TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
 
@@ -31,13 +31,13 @@ else
   fail "Titan-Aufruf abgelehnt" "$(cat "$TMP")"
 fi
 
-echo "3) Text (Claude, EU-Inference-Profil $CHAT_MODEL)"
+echo "3) Text (Amazon Nova, EU-Inference-Profil $CHAT_MODEL)"
 if ANSWER=$(aws bedrock-runtime converse --region "$REGION" --model-id "$CHAT_MODEL" \
      --messages '[{"role":"user","content":[{"text":"Antworte nur mit: ok"}]}]' \
      --query "output.message.content[0].text" --output text 2>"$TMP"); then
-  ok "Claude antwortet: $ANSWER"
+  ok "Modell antwortet: $ANSWER"
 else
-  fail "Claude-Aufruf abgelehnt" "$(cat "$TMP")"
+  fail "Modell-Aufruf abgelehnt" "$(cat "$TMP")"
 fi
 
 echo "4) Kommt die App im Docker-Container an die Rolle?"

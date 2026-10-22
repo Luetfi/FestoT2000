@@ -1,5 +1,5 @@
 // Amazon Bedrock access - server-only
-// Text generation (Claude via an EU cross-region inference profile) and
+// Text generation (Amazon Nova 2 Lite via an EU cross-region inference profile) and
 // embeddings (Amazon Titan Text Embeddings V2). Credentials come from the
 // default AWS provider chain - on EC2 the instance role, so no key is stored.
 import 'server-only';
@@ -12,7 +12,7 @@ import {
 const REGION = process.env.BEDROCK_REGION || 'eu-central-1';
 // EU inference profile: requests stay inside EU regions.
 export const CHAT_MODEL_ID =
-  process.env.BEDROCK_CHAT_MODEL_ID || 'eu.anthropic.claude-haiku-4-5-20251001-v1:0';
+  process.env.BEDROCK_CHAT_MODEL_ID || 'eu.amazon.nova-2-lite-v1:0';
 export const EMBEDDING_MODEL_ID =
   process.env.BEDROCK_EMBEDDING_MODEL_ID || 'amazon.titan-embed-text-v2:0';
 // Titan V2 supports 256, 512 or 1024; must match vector(...) in db/schema.sql.
@@ -67,7 +67,7 @@ export async function complete({
 }
 
 /**
- * Cut the JSON object out of a model answer. Claude follows the instruction
+ * Cut the JSON object out of a model answer. Models follow the instruction
  * reliably, but may still wrap the object in a code fence or add a sentence.
  */
 function extractJsonObject(text: string): string {

@@ -8,7 +8,7 @@ Semantische Videosuche für Festo Service-Techniker und Inbetriebnahme-Ingenieur
 
 - **Frontend:** Next.js 16 (App Router), React 19, Tailwind CSS 4, shadcn/ui
 - **Datenbank:** PostgreSQL 17 mit pgvector (HNSW-Index), Zugriff über `pg`
-- **KI:** Amazon Bedrock, Claude Haiku (EU-Inference-Profil) für Textfunktionen, Amazon Titan Text Embeddings V2 (1024 Dimensionen) für die Vektorsuche
+- **KI:** Amazon Bedrock, Amazon Nova 2 Lite (EU-Inference-Profil) für Textfunktionen, Amazon Titan Text Embeddings V2 (1024 Dimensionen) für die Vektorsuche
 - **Suche:** Hybrid-Suche (BM25 + Vektor-Ähnlichkeit) mit Reciprocal Rank Fusion
 - **APIs:** YouTube Data API v3 (nur zum Einlesen neuer Videos)
 - **Deployment:** Docker-Image (Next.js standalone)
