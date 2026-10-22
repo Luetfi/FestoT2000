@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { VideoDetailClient } from '@/components/video/video-detail-client';
 import { query, queryOne } from '@/lib/db';
 import { getDictionary, isValidLocale, defaultLocale } from '@/lib/dictionaries/get-dictionary';
-import { generateSummaries } from '@/lib/openai/summaries';
+import { generateSummaries } from '@/lib/ai/summaries';
 import type { OfficialStatus } from '@/types/search';
 
 interface VideoPageProps {

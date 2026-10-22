@@ -5,8 +5,8 @@ import 'server-only';
 import { fetchVideoMetadata, fetchChannelMetadata, classifyChannel } from '@/lib/youtube/api';
 import { fetchVideoTranscript } from '@/lib/youtube/transcripts';
 import { chunkTranscript } from '@/lib/ingestion/chunker';
-import { generateEmbeddings, validateEmbedding } from '@/lib/openai/embeddings';
-import { generateSummaries } from '@/lib/openai/summaries';
+import { generateEmbeddings, validateEmbedding, EMBEDDING_DIMENSIONS } from '@/lib/ai/embeddings';
+import { generateSummaries } from '@/lib/ai/summaries';
 import { gateVideo } from '@/lib/ingestion/relevance-gate';
 import { query, queryOne, toVector } from '@/lib/db';
 
@@ -215,7 +215,7 @@ export async function ingestVideo(
     for (const embedding of embeddings) {
       if (!validateEmbedding(embedding)) {
         throw new Error(
-          `Embedding dimension mismatch: expected 1536, got ${embedding.length}`
+          `Embedding dimension mismatch: expected ${EMBEDDING_DIMENSIONS}, got ${embedding.length}`
         );
       }
     }

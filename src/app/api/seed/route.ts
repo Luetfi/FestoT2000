@@ -35,10 +35,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ error: 'Missing OPENAI_API_KEY' }, { status: 500 });
-  }
-
   if (!process.env.YOUTUBE_API_KEY) {
     return NextResponse.json({ error: 'Missing YOUTUBE_API_KEY' }, { status: 500 });
   }
@@ -196,10 +192,6 @@ export async function POST(request: NextRequest) {
       { error: 'Only available in development or with INGESTION_SECRET' },
       { status: 403 }
     );
-  }
-
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ error: 'Missing OPENAI_API_KEY' }, { status: 500 });
   }
 
   if (!process.env.YOUTUBE_API_KEY) {

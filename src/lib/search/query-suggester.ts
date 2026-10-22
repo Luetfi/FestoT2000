@@ -3,24 +3,9 @@
 // terms the user could try instead. The judged "weakness" of the query is used
 // upstream as the trigger; this module only generates the actionable suggestions.
 import 'server-only';
-import OpenAI from 'openai';
+import { complete } from '@/lib/ai/bedrock';
 import type { QuerySuggestion } from '@/types/search';
 
-let _openai: OpenAI | null = null;
-
-function getOpenAI(): OpenAI {
-  if (_openai) return _openai;
-
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('Missing OPENAI_API_KEY environment variable');
-  }
-
-  _openai = new OpenAI({ apiKey });
-  return _openai;
-}
-
-const SUGGEST_MODEL = 'gpt-4o-mini';
 const MAX_SUGGESTIONS = 3;
 const MAX_TERM_CHARS = 60;
 
@@ -51,7 +36,7 @@ interface RawSuggestion {
 /**
  * Suggest more precise search terms for a weak query.
  * Returns at most MAX_SUGGESTIONS suggestions, or an empty array on any failure
- * (including a missing API key) so callers degrade gracefully.
+ * (including missing model access) so callers degrade gracefully.
  */
 export async function suggestQuery(
   query: string,
@@ -70,18 +55,12 @@ export async function suggestQuery(
   ].join('\n');
 
   try {
-    const openai = getOpenAI();
-    const response = await openai.chat.completions.create({
-      model: SUGGEST_MODEL,
+    const raw = await complete({
+      system: SYSTEM_PROMPT[lang],
+      user: userContent,
       temperature: 0,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT[lang] },
-        { role: 'user', content: userContent },
-      ],
+      json: true,
     });
-
-    const raw = response.choices[0]?.message?.content?.trim();
     if (!raw) return [];
 
     const parsedJson = JSON.parse(raw) as { suggestions?: RawSuggestion[] };

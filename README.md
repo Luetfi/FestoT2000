@@ -8,7 +8,7 @@ Semantische Videosuche für Festo Service-Techniker und Inbetriebnahme-Ingenieur
 
 - **Frontend:** Next.js 16 (App Router), React 19, Tailwind CSS 4, shadcn/ui
 - **Datenbank:** PostgreSQL 17 mit pgvector (HNSW-Index), Zugriff über `pg`
-- **KI/Embeddings:** OpenAI `text-embedding-3-small` (1536 Dimensionen)
+- **KI:** Amazon Bedrock, Claude Haiku (EU-Inference-Profil) für Textfunktionen, Amazon Titan Text Embeddings V2 (1024 Dimensionen) für die Vektorsuche
 - **Suche:** Hybrid-Suche (BM25 + Vektor-Ähnlichkeit) mit Reciprocal Rank Fusion
 - **APIs:** YouTube Data API v3 (nur zum Einlesen neuer Videos)
 - **Deployment:** Docker-Image (Next.js standalone)
@@ -27,7 +27,7 @@ Semantische Videosuche für Festo Service-Techniker und Inbetriebnahme-Ingenieur
 
 - Node.js 20.9+
 - Docker (für die lokale Datenbank und das Produktions-Image)
-- [OpenAI](https://platform.openai.com) API Key
+- Zugriff auf Amazon Bedrock (in AWS über die IAM-Rolle des Servers, lokal über AWS-Zugangsdaten)
 - [YouTube Data API](https://console.cloud.google.com) Key (optional, nur zum Einlesen neuer Videos)
 
 ## Setup
@@ -51,7 +51,6 @@ Die Datei `.env.local` ausfüllen:
 | Variable | Beschreibung |
 |---|---|
 | `DATABASE_URL` | PostgreSQL-Verbindung (`postgresql://user:passwort@host:port/db`) |
-| `OPENAI_API_KEY` | OpenAI API Key |
 | `YOUTUBE_API_KEY` | YouTube Data API Key, optional: nur zum Einlesen neuer Videos nötig |
 | `INGESTION_SECRET` | Secret für Ingestion-Endpunkte |
 | `CRON_SECRET` | Secret für Cron-Jobs |
@@ -129,7 +128,7 @@ YouTube Video
   → Metadaten abrufen (YouTube Data API)
   → Transkript laden (DE → EN Fallback)
   → In 30–60s Segmente aufteilen (15% Überlappung)
-  → Embeddings generieren (OpenAI)
+  → Embeddings generieren (Amazon Bedrock, Titan)
   → In PostgreSQL speichern (pgvector)
 ```
 
@@ -151,6 +150,8 @@ Auf dem Server (EC2, Amazon Linux 2023, Code unter `~/app`) übernehmen das die 
 | `deploy/create-env.sh` | Konfiguration `~/app.env` anlegen, Geheimnisse und Login-Passwörter werden erzeugt |
 | `deploy/init-db.sh` | `db/schema.sql` einmalig in die leere RDS-Datenbank einspielen |
 | `deploy/update.sh` | neuesten Stand von GitHub holen, Image bauen, App neu starten |
+| `deploy/check-bedrock.sh` | prüfen, ob der Server Bedrock über seine IAM-Rolle erreicht |
+| `deploy/switch-to-bedrock.sh` | einmalig: Vektorspalte auf 1024 Werte umstellen und alle Abschnitte neu einbetten |
 
 Neue Kanalvideos holt `/api/cron/sync-channels` (Aufruf mit `Authorization: Bearer $CRON_SECRET`), ein Zeitplaner ist nicht eingerichtet.
 
@@ -178,7 +179,7 @@ src/
 ├── lib/
 │   ├── search/              # Query-Parser, Enrichment, Relevanz-Filter
 │   ├── ingestion/           # Pipeline, Chunker, Seed-Queries
-│   ├── openai/              # Embeddings & Summaries
+│   ├── ai/                  # Bedrock: Embeddings, Zusammenfassungen, Erklärungen
 │   ├── youtube/             # YouTube API Client, Transkripte
 │   ├── db/                  # PostgreSQL-Zugriff & Typen
 │   └── dictionaries/        # i18n (de.json, en.json)

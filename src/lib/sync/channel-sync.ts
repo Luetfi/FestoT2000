@@ -51,7 +51,7 @@ export async function syncChannel(channelId: string, maxVideos = 4): Promise<Syn
 
   // Step 2: Filter out videos that are already DONE. A row existing is not
   // enough — ingestVideo() upserts the video row before fetching the transcript,
-  // so a run that dies mid-pipeline (timeout, OpenAI error) leaves a row behind
+  // so a run that dies mid-pipeline (timeout, model error) leaves a row behind
   // with has_transcript = false. Skipping on mere existence would strand those
   // videos permanently. Done means either:
   //   - has_transcript = true  -> fully ingested and searchable

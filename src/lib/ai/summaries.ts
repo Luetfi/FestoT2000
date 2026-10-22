@@ -1,27 +1,8 @@
-// OpenAI summary generation - server-only
+// Summary and explanation generation via Amazon Bedrock - server-only
 // Generates short KI summaries for transcript segments
 import 'server-only';
-import OpenAI from 'openai';
+import { complete } from '@/lib/ai/bedrock';
 
-let _openai: OpenAI | null = null;
-
-function getOpenAI(): OpenAI {
-  if (_openai) return _openai;
-
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('Missing OPENAI_API_KEY environment variable');
-  }
-
-  _openai = new OpenAI({
-    apiKey,
-  });
-
-  return _openai;
-}
-
-const SUMMARY_MODEL = 'gpt-4o-mini';
 const CONCURRENCY_LIMIT = 10;
 
 const SYSTEM_PROMPT =
@@ -31,25 +12,9 @@ const SYSTEM_PROMPT =
  * Generate a summary for a single text segment
  */
 async function generateSummary(text: string): Promise<string> {
-  const openai = getOpenAI();
   try {
-    const response = await openai.chat.completions.create({
-      model: SUMMARY_MODEL,
-      temperature: 0.3,
-      max_tokens: 50,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: text },
-      ],
-    });
-
-    return response.choices[0]?.message?.content?.trim() ?? '';
+    return await complete({ system: SYSTEM_PROMPT, user: text, temperature: 0.3, maxTokens: 50 });
   } catch (error) {
-    if (error instanceof OpenAI.RateLimitError) {
-      console.warn('OpenAI rate limit hit for summary, waiting before retry...');
-      await sleep(1000);
-      return generateSummary(text);
-    }
     console.error('Failed to generate summary:', error);
     return '';
   }
@@ -86,8 +51,6 @@ const EXPLANATION_SYSTEM_PROMPT =
  * based on the segment content instead of summarizing the whole segment.
  */
 export async function generateExplanation(text: string, query?: string): Promise<string> {
-  const openai = getOpenAI();
-
   const systemPrompt = query
     ? `Du bist ein technischer Experte für Festo-Produkte. Der Nutzer hat folgende Frage: "${query}"
 
@@ -98,32 +61,9 @@ Wenn der Transkript-Abschnitt die Frage nicht direkt beantwortet, erkläre statt
 Strukturiere den Text in klare Absätze. Verwende einfache Sprache, aber bleibe fachlich korrekt. Antworte IMMER auf Deutsch. Antworte nur mit der Antwort, ohne Einleitung.`
     : EXPLANATION_SYSTEM_PROMPT;
 
-  try {
-    const response = await openai.chat.completions.create({
-      model: SUMMARY_MODEL,
-      temperature: 0.3,
-      max_tokens: 500,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: text },
-      ],
-    });
-
-    const result = response.choices[0]?.message?.content?.trim();
-    if (!result) {
-      throw new Error('Empty response from OpenAI');
-    }
-    return result;
-  } catch (error) {
-    if (error instanceof OpenAI.RateLimitError) {
-      console.warn('OpenAI rate limit hit for explanation, waiting before retry...');
-      await sleep(1000);
-      return generateExplanation(text, query);
-    }
-    throw error;
+  const result = await complete({ system: systemPrompt, user: text, temperature: 0.3, maxTokens: 500 });
+  if (!result) {
+    throw new Error('Empty response from the language model');
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return result;
 }

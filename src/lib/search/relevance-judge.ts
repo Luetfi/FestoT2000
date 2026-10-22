@@ -3,24 +3,9 @@
 // Returns a 0-100 confidence per segment id (a content-based judgement, not just
 // vector similarity), used as the "Relevanz"/confidence shown in the UI.
 import 'server-only';
-import OpenAI from 'openai';
+import { complete } from '@/lib/ai/bedrock';
 import type { SearchResultSegment } from '@/types/search';
 
-let _openai: OpenAI | null = null;
-
-function getOpenAI(): OpenAI {
-  if (_openai) return _openai;
-
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('Missing OPENAI_API_KEY environment variable');
-  }
-
-  _openai = new OpenAI({ apiKey });
-  return _openai;
-}
-
-const JUDGE_MODEL = 'gpt-4o-mini';
 // Keep the prompt small: only the leading part of each segment is needed to judge topic relevance.
 const MAX_TEXT_CHARS = 700;
 
@@ -72,18 +57,13 @@ Abschnitte:
 ${JSON.stringify(items)}`;
 
   try {
-    const openai = getOpenAI();
-    const response = await openai.chat.completions.create({
-      model: JUDGE_MODEL,
+    const raw = await complete({
+      system: SYSTEM_PROMPT,
+      user: userContent,
       temperature: 0,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userContent },
-      ],
+      maxTokens: 4000,
+      json: true,
     });
-
-    const raw = response.choices[0]?.message?.content?.trim();
     if (!raw) return result;
 
     const parsed = JSON.parse(raw) as { scores?: JudgeScore[] };

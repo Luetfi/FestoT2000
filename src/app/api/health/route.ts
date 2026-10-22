@@ -31,21 +31,6 @@ export async function GET() {
     });
   }
 
-  // Check environment variables are set (don't call APIs here, just verify config).
-  // YOUTUBE_API_KEY is deliberately not checked: it is only needed to ingest new
-  // videos, which is optional - search runs without it.
-  const envChecks = [
-    { name: 'openai_api_key', envVar: 'OPENAI_API_KEY' },
-  ];
-
-  for (const check of envChecks) {
-    services.push({
-      name: check.name,
-      status: process.env[check.envVar] ? 'ok' : 'error',
-      error: process.env[check.envVar] ? undefined : `Missing ${check.envVar}`,
-    });
-  }
-
   const allOk = services.every((s) => s.status === 'ok');
 
   return NextResponse.json(

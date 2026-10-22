@@ -11,21 +11,9 @@
 // Dieser Picker bewertet daher jedes Segment eines Treffervideos OHNE den Titel
 // und allein danach, ob der Ausschnitt selbst die Frage beantwortet.
 import 'server-only';
-import OpenAI from 'openai';
+import { complete } from '@/lib/ai/bedrock';
 import { query as dbQuery, toVector } from '@/lib/db';
 import type { SearchResultSegment } from '@/types/search';
-
-let _openai: OpenAI | null = null;
-
-function getOpenAI(): OpenAI {
-  if (_openai) return _openai;
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('Missing OPENAI_API_KEY environment variable');
-  _openai = new OpenAI({ apiKey });
-  return _openai;
-}
-
-const PICKER_MODEL = 'gpt-4o-mini';
 
 // Anders als beim Video-Judge (relevance-judge.ts, 700 Zeichen) wird hier der
 // volle Segmenttext uebergeben. Die Chunks sind rund 800 Zeichen lang; eine
@@ -130,17 +118,13 @@ Abschnitte:
 ${JSON.stringify(items)}`;
 
   try {
-    const response = await getOpenAI().chat.completions.create({
-      model: PICKER_MODEL,
+    const raw = await complete({
+      system: SYSTEM_PROMPT,
+      user: userContent,
       temperature: 0,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userContent },
-      ],
+      maxTokens: 4000,
+      json: true,
     });
-
-    const raw = response.choices[0]?.message?.content?.trim();
     if (!raw) return scores;
 
     const parsed = JSON.parse(raw) as { scores?: Array<{ id?: string; score?: number }> };

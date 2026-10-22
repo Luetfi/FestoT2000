@@ -2,25 +2,9 @@
 // Decides whether a (community) video is worth ingesting at all: it must be
 // about Festo products AND actually solve a concrete technical problem.
 // Runs BEFORE embedding so clearly irrelevant videos never cost embedding credits.
-// Mirrors the pattern of src/lib/search/relevance-judge.ts (OpenAI, gpt-4o-mini, JSON).
+// Mirrors the pattern of src/lib/search/relevance-judge.ts (Bedrock, JSON answer).
 import 'server-only';
-import OpenAI from 'openai';
-
-let _openai: OpenAI | null = null;
-
-function getOpenAI(): OpenAI {
-  if (_openai) return _openai;
-
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('Missing OPENAI_API_KEY environment variable');
-  }
-
-  _openai = new OpenAI({ apiKey });
-  return _openai;
-}
-
-const GATE_MODEL = 'gpt-4o-mini';
+import { complete } from '@/lib/ai/bedrock';
 
 // Accept threshold: the video must be clearly relevant AND score this high.
 export const GATE_SCORE_THRESHOLD = 70;
@@ -96,18 +80,7 @@ Transkript-Auszug:
 ${buildTranscriptSample(input.transcript)}`;
 
   try {
-    const openai = getOpenAI();
-    const response = await openai.chat.completions.create({
-      model: GATE_MODEL,
-      temperature: 0,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userContent },
-      ],
-    });
-
-    const raw = response.choices[0]?.message?.content?.trim();
+    const raw = await complete({ system: SYSTEM_PROMPT, user: userContent, temperature: 0, json: true });
     if (!raw) return fallback;
 
     const parsed = JSON.parse(raw) as Partial<GateResult>;

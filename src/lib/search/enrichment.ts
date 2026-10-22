@@ -2,7 +2,7 @@ import 'server-only';
 import { query } from '@/lib/db';
 import { HybridSearchResult } from '@/lib/db/types';
 import { SearchResultSegment, OfficialStatus } from '@/types/search';
-import { generateSummaries } from '@/lib/openai/summaries';
+import { generateSummaries } from '@/lib/ai/summaries';
 
 /**
  * Enrich raw hybrid search results with video and channel metadata

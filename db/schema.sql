@@ -61,7 +61,7 @@ CREATE TABLE segments (
   text_tsv tsvector GENERATED ALWAYS AS (to_tsvector('german', text)) STORED,
   start_time FLOAT NOT NULL,
   end_time FLOAT NOT NULL,
-  embedding vector(1536),  -- text-embedding-3-small
+  embedding vector(1024),  -- Amazon Titan Text Embeddings V2
   created_at TIMESTAMPTZ DEFAULT NOW(),
   summary TEXT,
   explanation TEXT,
@@ -158,7 +158,7 @@ HAVING count(*) FILTER (WHERE was_solved IS FALSE) > 0
 -- Reine Vektorsuche -----------------------------------------------------
 
 CREATE OR REPLACE FUNCTION search_segments(
-  query_embedding vector(1536),
+  query_embedding vector(1024),
   match_threshold float DEFAULT 0.7,
   match_count int DEFAULT 10
 )
@@ -193,7 +193,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION segments_for_videos(
   video_ids bigint[],
-  query_embedding vector(1536)
+  query_embedding vector(1024)
 )
 RETURNS TABLE (
   id bigint,
@@ -231,13 +231,13 @@ $$;
 
 CREATE OR REPLACE FUNCTION hybrid_search_segments(
   query_text text,
-  query_embedding vector(1536),
+  query_embedding vector(1024),
   match_count int DEFAULT 20,
   full_text_weight float DEFAULT 1.0,
   semantic_weight float DEFAULT 1.0,
   rrf_k int DEFAULT 50,
   query_text_alt text DEFAULT NULL,
-  query_embedding_alt vector(1536) DEFAULT NULL,
+  query_embedding_alt vector(1024) DEFAULT NULL,
   fts_mode text DEFAULT 'german'
 )
 RETURNS TABLE (

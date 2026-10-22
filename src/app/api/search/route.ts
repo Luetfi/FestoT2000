@@ -2,7 +2,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { query as dbQuery, queryOne, toVector } from '@/lib/db';
 import type { HybridSearchResult } from '@/lib/db/types';
-import { generateEmbedding } from '@/lib/openai/embeddings';
+import { generateEmbedding } from '@/lib/ai/embeddings';
 import { enrichSearchResults } from '@/lib/search/enrichment';
 import { filterByRelevance, filterByConfidence, capVideoGroups } from '@/lib/search/relevance-filter';
 import { judgeRelevance } from '@/lib/search/relevance-judge';

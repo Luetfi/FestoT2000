@@ -1,7 +1,7 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { query as dbQuery, queryOne } from '@/lib/db';
-import { generateExplanation } from '@/lib/openai/summaries';
+import { generateExplanation } from '@/lib/ai/summaries';
 
 export async function GET(
   request: NextRequest,

@@ -37,7 +37,6 @@ ask() {
 
 DB_HOST=$(ask "Datenbank-Endpunkt (z. B. festo-video-search-db.xxxx.eu-central-1.rds.amazonaws.com)" 0)
 DB_PASSWORD=$(ask "Datenbank-Passwort" 1)
-OPENAI_API_KEY=$(ask "OpenAI-API-Key" 1)
 
 # Sonderzeichen im Passwort duerfen die Verbindungs-URL nicht zerlegen.
 DB_PASSWORD_ENC=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$DB_PASSWORD")
@@ -48,7 +47,6 @@ umask 077
 cat > "$ENV_FILE" <<EOF
 DATABASE_URL=postgresql://festo:${DB_PASSWORD_ENC}@${DB_HOST}:5432/festovideosearch
 DATABASE_SSL_CA=/app/certs/rds-global-bundle.pem
-OPENAI_API_KEY=${OPENAI_API_KEY}
 # Nur zum Einlesen neuer Videos noetig (optional):
 # YOUTUBE_API_KEY=
 INGESTION_SECRET=$(openssl rand -hex 24)
