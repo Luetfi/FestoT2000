@@ -4,6 +4,8 @@ Semantische Videosuche für Festo Service-Techniker und Inbetriebnahme-Ingenieur
 
 **Problem eingeben → passendes Videosegment finden → direkt zur richtigen Stelle springen.**
 
+Betrieb, Zugänge und Wartung der Installation in AWS: siehe [`UEBERGABE.md`](UEBERGABE.md).
+
 ## Tech Stack
 
 - **Frontend:** Next.js 16 (App Router), React 19, Tailwind CSS 4, shadcn/ui
