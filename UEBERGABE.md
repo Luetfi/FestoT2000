@@ -33,8 +33,8 @@ Browser ── https ──> CloudFront ── http ──> EC2 (Docker: Next.js
 | Netzwerk | Standard-VPC `vpc-049bf110c1fdd6672` | keine Anbindung ans Festo-Netz |
 
 Der Quellcode liegt in GitLab: `https://gitlab.festo.company/lntc/festo-video-search`
-(Projekt im persönlichen Bereich von lntc; Matthias Freund und Johannes Hoos sind
-Maintainer).
+(Projekt im persönlichen Bereich von lntc; Matthias Freund ist als Owner
+eingeladen und kann weitere Personen hinzufügen).
 
 
 ## 2. Zugänge
