@@ -12,6 +12,7 @@
 // und allein danach, ob der Ausschnitt selbst die Frage beantwortet.
 import 'server-only';
 import { complete } from '@/lib/ai/bedrock';
+import { parseScores } from '@/lib/ai/scores';
 import { query as dbQuery, toVector } from '@/lib/db';
 import type { SearchResultSegment } from '@/types/search';
 
@@ -130,14 +131,15 @@ ${JSON.stringify(items)}`;
       return scores;
     }
 
-    const parsed = JSON.parse(raw) as { scores?: Array<{ id?: string; score?: number }> };
-    for (const entry of parsed.scores ?? []) {
-      if (entry?.id == null || typeof entry.score !== 'number') continue;
+    const { scores: entries, recovered } = parseScores(raw);
+    for (const entry of entries) {
       const id = Number(entry.id);
       if (!Number.isFinite(id)) continue;
       scores.set(id, Math.max(0, Math.min(100, Math.round(entry.score))));
     }
-    console.log(`[picker] ${scores.size}/${items.length} segments scored`);
+    console.log(
+      `[picker] ${scores.size}/${items.length} segments scored${recovered ? ' (recovered from invalid JSON)' : ''}`
+    );
     if (scores.size === 0) {
       console.warn(`[picker] no usable scores, model answer: ${raw.slice(0, 500)}`);
     }

@@ -4,6 +4,7 @@
 // vector similarity), used as the "Relevanz"/confidence shown in the UI.
 import 'server-only';
 import { complete } from '@/lib/ai/bedrock';
+import { parseScores } from '@/lib/ai/scores';
 import type { SearchResultSegment } from '@/types/search';
 
 // Keep the prompt small: only the leading part of each segment is needed to judge topic relevance.
@@ -25,11 +26,6 @@ Für jeden Abschnitt vergibst du einen Wert von 0 bis 100:
 
 Nutze nur Titel und Text der Abschnitte, kein externes Wissen.
 Antworte NUR mit JSON in der Form {"scores":[{"id":"<id>","score":<0-100>}]} und bewerte jeden Abschnitt genau einmal.`;
-
-interface JudgeScore {
-  id: string;
-  score: number;
-}
 
 /**
  * Judge how confidently each segment answers the query.
@@ -69,13 +65,14 @@ ${JSON.stringify(items)}`;
       return result;
     }
 
-    const parsed = JSON.parse(raw) as { scores?: JudgeScore[] };
-    for (const entry of parsed.scores ?? []) {
-      if (entry?.id == null || typeof entry.score !== 'number') continue;
+    const { scores, recovered } = parseScores(raw);
+    for (const entry of scores) {
       const clamped = Math.max(0, Math.min(100, Math.round(entry.score)));
-      result.set(String(entry.id), clamped);
+      result.set(entry.id, clamped);
     }
-    console.log(`[judge] ${result.size}/${segments.length} segments scored`);
+    console.log(
+      `[judge] ${result.size}/${segments.length} segments scored${recovered ? ' (recovered from invalid JSON)' : ''}`
+    );
     if (result.size === 0) {
       console.warn(`[judge] no usable scores, model answer: ${raw.slice(0, 500)}`);
     }
