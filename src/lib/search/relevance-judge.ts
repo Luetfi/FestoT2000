@@ -1,0 +1,85 @@
+// LLM relevance judge - server-only
+// Rates how confidently each search result segment answers the user's question.
+// Returns a 0-100 confidence per segment id (a content-based judgement, not just
+// vector similarity), used as the "Relevanz"/confidence shown in the UI.
+import 'server-only';
+import { complete } from '@/lib/ai/bedrock';
+import { parseScores } from '@/lib/ai/scores';
+import type { SearchResultSegment } from '@/types/search';
+
+// Keep the prompt small: only the leading part of each segment is needed to judge topic relevance.
+const MAX_TEXT_CHARS = 700;
+
+const SYSTEM_PROMPT = `Du bewertest, wie sicher ein Video-Abschnitt die Frage eines Nutzers tatsächlich beantwortet bzw. löst.
+
+Jeder Abschnitt enthält den Titel seines Videos ("title") und den Transkript-Ausschnitt ("text").
+Der Titel sagt dir, worum es im Video insgesamt geht - berücksichtige ihn unbedingt: Ein kurzer
+Transkript-Ausschnitt zeigt oft nur einen Teilaspekt, während der Titel das eigentliche Thema benennt.
+Wenn der Titel das Thema der Frage direkt trifft (z. B. Frage "wie lege ich ein Projekt an?" und Titel
+"Projekte anlegen"), ist das Video hoch relevant, selbst wenn der gezeigte Ausschnitt nur einen Teil davon behandelt.
+
+Für jeden Abschnitt vergibst du einen Wert von 0 bis 100:
+- 90-100: Video und Abschnitt beantworten die Frage direkt und vollständig.
+- 70-89: Video/Abschnitt behandeln das Thema klar und sind sehr hilfreich, evtl. nicht jedes Detail.
+- 40-69: Thematisch verwandt, beantwortet die Frage aber nur teilweise.
+- 0-39: Passt kaum oder gar nicht zur Frage.
+
+Nutze nur Titel und Text der Abschnitte, kein externes Wissen.
+Antworte NUR mit JSON in der Form {"scores":[{"id":"<id>","score":<0-100>}]} und bewerte jeden Abschnitt genau einmal.`;
+
+/**
+ * Judge how confidently each segment answers the query.
+ * Returns a Map of segment id -> confidence (0-100).
+ * On any failure returns an empty Map so callers can fall back gracefully.
+ */
+export async function judgeRelevance(
+  query: string,
+  segments: SearchResultSegment[]
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (segments.length === 0 || !query.trim()) {
+    return result;
+  }
+
+  const items = segments.map((seg) => ({
+    id: seg.id,
+    title: seg.video_title,
+    text: seg.text.slice(0, MAX_TEXT_CHARS),
+  }));
+
+  const userContent = `Frage des Nutzers: "${query.trim()}"
+
+Abschnitte:
+${JSON.stringify(items)}`;
+
+  try {
+    const raw = await complete({
+      system: SYSTEM_PROMPT,
+      user: userContent,
+      temperature: 0,
+      maxTokens: 4000,
+      json: true,
+    });
+    if (!raw) {
+      console.warn('[judge] empty model answer');
+      return result;
+    }
+
+    const { scores, recovered } = parseScores(raw);
+    for (const entry of scores) {
+      const clamped = Math.max(0, Math.min(100, Math.round(entry.score)));
+      result.set(entry.id, clamped);
+    }
+    console.log(
+      `[judge] ${result.size}/${segments.length} segments scored${recovered ? ' (recovered from invalid JSON)' : ''}`
+    );
+    if (result.size === 0) {
+      console.warn(`[judge] no usable scores, model answer: ${raw.slice(0, 500)}`);
+    }
+  } catch (error) {
+    console.error('Relevance judge failed:', error);
+    return new Map();
+  }
+
+  return result;
+}
