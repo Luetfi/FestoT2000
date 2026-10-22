@@ -32,7 +32,9 @@ Browser ── https ──> CloudFront ── http ──> EC2 (Docker: Next.js
 | Sicherheitsgruppen | `festo-video-search-app`, `ec2-rds-1`, `rds-ec2-1` | Firewall, siehe Abschnitt 6 |
 | Netzwerk | Standard-VPC `vpc-049bf110c1fdd6672` | keine Anbindung ans Festo-Netz |
 
-Der Quellcode liegt in GitLab: `gitlab.festo.company/.../festo-video-search`.
+Der Quellcode liegt in GitLab: `https://gitlab.festo.company/lntc/festo-video-search`
+(Projekt im persönlichen Bereich von lntc; Matthias Freund und Johannes Hoos sind
+Maintainer).
 
 
 ## 2. Zugänge
@@ -140,7 +142,7 @@ Bei der Übergabe holte der Server den Code noch aus einem privaten GitHub-Repo
 3. Auf dem Server (Platzhalter ersetzen):
    ```bash
    cd ~/app
-   git remote set-url origin https://<BENUTZER>:<TOKEN>@gitlab.festo.company/<PFAD>/festo-video-search.git
+   git remote set-url origin https://<BENUTZER>:<TOKEN>@gitlab.festo.company/lntc/festo-video-search.git
    git fetch origin
    git checkout -B main origin/main
    ```
